@@ -1,0 +1,67 @@
+@@ .. @@
+        // Enhanced message formatting with better AI indicators
+        function formatTravelResponse(data) {
+            const container = document.createElement('div');
+            container.className = 'travel-response';
+            
++            // Enhanced AI status detection
++            const aiUsed = data.ai_used || false;
++            const systemStatus = data.system_status || 'operational';
++            const processingTime = data.processing_time || 0;
++            
+            // Response header with enhanced status
+            const header = document.createElement('div');
+            header.className = 'response-header';
++            
++            const statusBadge = aiUsed ? 
++                '<span class="ai-badge ai-powered">🧠 AI-Powered</span>' :
++                '<span class="ai-badge fallback">⚡ Smart Fallback</span>';
++            
+            header.innerHTML = `
+                <div class="response-meta">
+                    <span class="agent-badge">${data.agents_involved?.[0] || 'Travel Assistant'}</span>
+-                    <span class="mode-badge ${data.mode || 'chat'}">${(data.mode || 'chat').toUpperCase()}</span>
++                    ${statusBadge}
++                    <span class="mode-badge ${data.mode || 'chat'}">${(data.mode || 'chat').toUpperCase()}</span>
++                    <span class="timing-badge">⏱️ ${processingTime.toFixed(2)}s</span>
+                </div>
+            `;
+            
+            // Response content with better formatting
+            const content = document.createElement('div');
+            content.className = 'response-content';
+-            content.innerHTML = formatResponseText(data.response || 'No response received');
++            
++            const responseText = data.response || data.final_response || 'No response received';
++            content.innerHTML = formatResponseText(responseText);
+            
+            container.appendChild(header);
+            container.appendChild(content);
+            
++            // Add system status indicator
++            if (systemStatus !== 'operational') {
++                const statusIndicator = document.createElement('div');
++                statusIndicator.className = 'system-status-indicator';
++                statusIndicator.innerHTML = `
++                    <i class="fas fa-info-circle"></i>
++                    System Status: ${systemStatus}
++                `;
++                container.appendChild(statusIndicator);
++            }
++            
+            return container;
+        }
+        
+        function formatResponseText(text) {
++            if (!text) return 'No response available';
++            
+            return text
+                .replace(/\n/g, '<br>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/#{1,6}\s(.+)/g, '<h3>$1</h3>')
+                .replace(/^- (.+)/gm, '<li>$1</li>')
+-                .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>');
++                .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
++                .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
+        }
