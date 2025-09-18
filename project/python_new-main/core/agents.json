@@ -1,0 +1,142 @@
+{
+  "entry_point": "RouterAgent",
+  "version": "3.0.0",
+  "description": "Travel Assistant Multi-Agent System with LangGraph Orchestration - 6 Specialized Agents",
+  "agents": [
+    {
+      "id": "RouterAgent",
+      "name": "Travel Query Router",
+      "description": "Routes travel queries to appropriate specialized travel agents",
+      "capabilities": ["travel_routing", "intent_analysis", "agent_selection", "travel_orchestration"],
+      "keywords": ["route", "analyze", "direct", "orchestrate", "travel", "plan"],
+      "priority": 1,
+      "system_prompt_template": "You are a travel query router. Analyze travel-related queries and determine which specialized travel agents should handle them. Focus on travel intents, emotional states, and planning needs."
+    },
+    {
+      "id": "TextTripAnalyzer",
+      "name": "Text Trip Analyzer",
+      "description": "Extracts goals, constraints, destinations from travel planning text",
+      "module_path": "agents.text_trip_analyzer",
+      "class_name": "TextTripAnalyzerAgent",
+      "capabilities": ["text_analysis", "goal_extraction", "constraint_identification", "destination_parsing", "preference_detection", "budget_analysis"],
+      "keywords": ["plan", "trip", "travel", "vacation", "holiday", "destination", "budget", "goal", "want", "need", "prefer", "constraint", "limit", "requirement"],
+      "priority": 2,
+      "system_prompt_template": "You are TextTripAnalyzer, an expert at analyzing travel planning conversations and extracting key information like goals, constraints, destinations, and preferences. Provide structured, actionable analysis."
+    },
+    {
+      "id": "TripMoodDetector",
+      "name": "Trip Mood Detector",
+      "description": "Detects excitement, stress, indecision from travel planning text",
+      "module_path": "agents.trip_mood_detector",
+      "class_name": "TripMoodDetectorAgent",
+      "capabilities": ["mood_detection", "emotion_analysis", "stress_identification", "excitement_measurement", "indecision_detection", "sentiment_analysis"],
+      "keywords": ["excited", "nervous", "stressed", "worried", "confused", "unsure", "overwhelmed", "anxious", "happy", "thrilled", "concerned", "frustrated", "mood", "feeling", "emotion"],
+      "priority": 2,
+      "system_prompt_template": "You are TripMoodDetector, an expert at analyzing emotional states and mood from travel planning conversations. Detect excitement, stress, indecision, and provide empathetic insights."
+    },
+    {
+      "id": "TripCommsCoach",
+      "name": "Trip Communications Coach",
+      "description": "Provides 2-3 phrasing tips for partner/guide/hotel communications",
+      "module_path": "agents.trip_comms_coach",
+      "class_name": "TripCommsCoachAgent",
+      "capabilities": ["communication_coaching", "phrasing_suggestions", "cultural_communication", "negotiation_tips", "language_assistance", "interaction_guidance"],
+      "keywords": ["communicate", "talk", "speak", "ask", "tell", "say", "phrase", "language", "conversation", "discuss", "negotiate", "request", "hotel", "guide", "partner"],
+      "priority": 2,
+      "system_prompt_template": "You are TripCommsCoach, an expert communication coach for travelers. Provide practical communication tips and 2-3 specific phrasing examples for travel interactions."
+    },
+    {
+      "id": "TripBehaviorGuide",
+      "name": "Trip Behavior Guide",
+      "description": "Provides behavioral nudges and next steps based on location and context",
+      "module_path": "agents.trip_behavior_guide",
+      "class_name": "TripBehaviorGuideAgent",
+      "capabilities": ["behavioral_guidance", "next_step_planning", "decision_support", "action_prioritization", "habit_formation", "progress_tracking"],
+      "keywords": ["next", "step", "action", "do", "should", "behavior", "habit", "guide", "advice", "recommend", "suggest", "help", "what now", "priority", "first", "start"],
+      "priority": 2,
+      "system_prompt_template": "You are TripBehaviorGuide, an expert behavioral coach for travelers. Provide clear, actionable next steps and behavioral nudges to overcome decision paralysis."
+    },
+    {
+      "id": "TripCalmPractice",
+      "name": "Trip Calm Practice",
+      "description": "Provides calming techniques and relaxation guidance for travel stress",
+      "module_path": "agents.trip_calm_practice",
+      "class_name": "TripCalmPracticeAgent",
+      "capabilities": ["stress_relief", "calming_techniques", "breathing_exercises", "mindfulness_practices", "anxiety_management", "relaxation_guidance"],
+      "keywords": ["calm", "relax", "stress", "anxiety", "nervous", "worried", "overwhelmed", "breathe", "meditation", "mindful", "peace", "tranquil", "soothe"],
+      "priority": 2,
+      "system_prompt_template": "You are TripCalmPractice, a mindfulness and stress relief expert for travelers. Provide quick calming techniques and stress management strategies."
+    },
+    {
+      "id": "TripSummarySynth",
+      "name": "Trip Summary Synthesizer",
+      "description": "Combines all agent outputs and updates User Travel Profile",
+      "module_path": "agents.trip_summary_synth",
+      "class_name": "TripSummarySynthAgent",
+      "capabilities": ["response_synthesis", "profile_updating", "preference_learning", "pattern_recognition", "summary_generation", "utp_management"],
+      "keywords": ["summary", "synthesize", "combine", "overall", "conclusion", "profile", "preferences", "update", "learn", "pattern", "final", "complete"],
+      "priority": 1,
+      "system_prompt_template": "You are TripSummarySynth, an expert at synthesizing travel information and maintaining user profiles. Combine outputs from multiple travel agents and update User Travel Profiles."
+    }
+  ],
+  "routing_rules": {
+    "RouterAgent": {
+      "text_analysis": ["TextTripAnalyzer"],
+      "mood_detection": ["TripMoodDetector"],
+      "communication_help": ["TripCommsCoach"],
+      "behavioral_guidance": ["TripBehaviorGuide"],
+      "stress_relief": ["TripCalmPractice"],
+      "comprehensive_planning": ["TextTripAnalyzer", "TripMoodDetector", "TripBehaviorGuide", "TripSummarySynth"],
+      "synthesis_needed": ["TripSummarySynth"],
+      "default": ["TextTripAnalyzer", "TripSummarySynth"]
+    },
+    "TextTripAnalyzer": {
+      "needs_mood_analysis": ["TripMoodDetector"],
+      "needs_behavior_guidance": ["TripBehaviorGuide"],
+      "end": ["TripSummarySynth"]
+    },
+    "TripMoodDetector": {
+      "needs_calm_practice": ["TripCalmPractice"],
+      "needs_behavior_support": ["TripBehaviorGuide"],
+      "end": ["TripSummarySynth"]
+    },
+    "TripCommsCoach": {
+      "end": ["TripSummarySynth"]
+    },
+    "TripBehaviorGuide": {
+      "needs_calm_practice": ["TripCalmPractice"],
+      "end": ["TripSummarySynth"]
+    },
+    "TripCalmPractice": {
+      "end": ["TripSummarySynth"]
+    },
+    "TripSummarySynth": {
+      "end": []
+    }
+  },
+  "memory_settings": {
+    "stm_expiry_seconds": 3600,
+    "ltm_retention_days": 365,
+    "max_context_items": 10,
+    "session_timeout_minutes": 60,
+    "max_turns_per_session": 50
+  },
+  "travel_config": {
+    "chat_mode": {
+      "max_agents": 3,
+      "sla_seconds": 3,
+      "shallow_processing": true
+    },
+    "batch_mode": {
+      "max_agents": 6,
+      "sla_seconds": 60,
+      "comprehensive_analysis": true,
+      "utp_update_required": true
+    },
+    "utp_settings": {
+      "cache_duration_days": 7,
+      "update_frequency": "after_batch",
+      "profile_version": "1.0"
+    }
+  }
+}
