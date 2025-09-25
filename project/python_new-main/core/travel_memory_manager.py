@@ -64,6 +64,9 @@ class TravelMemoryManager(MemoryManager):
             # Initialize turn list
             self.redis_conn.expire(f"stm:sess:{user_id}:{session_id}:turns", 30 * 24 * 3600)
             
+            # Also store session in MySQL for persistence
+            self.store_session_in_mysql(session_id, user_id, title, mode)
+            
             logger.info(f"Started new {mode} session {session_id} for user {user_id}")
             return session_id
             
@@ -102,6 +105,11 @@ class TravelMemoryManager(MemoryManager):
             # Add to recent index
             self.redis_conn.zadd(f"stm:recent:{user_id}", {turn_id: time.time()})
             self.redis_conn.zremrangebyrank(f"stm:recent:{user_id}", 0, -201)  # Keep last 200
+            
+            # Also store turn in MySQL for persistence
+            self.store_turn_in_mysql(turn_id, session_id, user_id, role, 
+                                   metadata.get('agent_name') if metadata else None, 
+                                   text, metadata)
             
             logger.debug(f"Added turn {turn_id} to session {session_id}")
             return turn_id

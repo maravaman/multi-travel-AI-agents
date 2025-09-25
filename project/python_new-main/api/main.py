@@ -801,17 +801,31 @@ class ChatInput(BaseModel):
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     # Serve the original travel interface
-    return templates.TemplateResponse("travel_interface.html", {"request": request})
+    return templates.TemplateResponse("travel_assistant.html", {"request": request})
 
 # ✅ Complex Interface Route
 @app.get("/complex", response_class=HTMLResponse)
 async def complex_interface(request: Request):
-    return templates.TemplateResponse("travel_interface.html", {"request": request})
+    return templates.TemplateResponse("travel_assistant.html", {"request": request})
 
 # ✅ Legacy Interface Route
 @app.get("/legacy", response_class=HTMLResponse)
 async def legacy_interface(request: Request):
-    return templates.TemplateResponse("auth_interface.html", {"request": request})
+    return templates.TemplateResponse("travel_assistant.html", {"request": request})
+
+# ✅ Debug Interface Route
+@app.get("/debug_ui.html", response_class=HTMLResponse)
+async def debug_interface(request: Request):
+    """Debug UI for testing JavaScript response handling"""
+    import os
+    debug_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "debug_ui.html")
+    if os.path.exists(debug_file):
+        with open(debug_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(content=content)
+    else:
+        raise HTTPException(status_code=404, detail="Debug UI not found")
 
 # ✅ Updated run_graph endpoint with LangGraph Multiagent System
 @app.post("/run_graph")
@@ -1048,5 +1062,6 @@ if __name__ == "__main__":
         )
     except KeyboardInterrupt:
         print("\n🛑 Server stopped by user")
+        sys.exit(0)
     except Exception as e:
         print(f"❌ Server failed to start: {e}")

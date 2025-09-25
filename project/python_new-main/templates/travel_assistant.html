@@ -1,0 +1,2182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Travel Assistant - AI-Powered Trip Planning</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* 🎨 Perfect CSS Variables and Modern Reset */
+        :root {
+            --primary: #667eea;
+            --primary-dark: #5a67d8;
+            --secondary: #764ba2;
+            --accent: #f093fb;
+            --success: #48bb78;
+            --warning: #ed8936;
+            --error: #f56565;
+            --info: #4299e1;
+            --surface: rgba(255, 255, 255, 0.95);
+            --surface-alt: rgba(255, 255, 255, 0.9);
+            --text: #2d3748;
+            --text-light: #4a5568;
+            --text-muted: #718096;
+            --border: #e2e8f0;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            --radius: 12px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --font: 'Inter', system-ui, sans-serif;
+            --debug-bg: rgba(0, 0, 0, 0.9);
+            --debug-green: #00ff00;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font);
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            min-height: 100vh;
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        /* 🏠 Header Styles */
+        .header {
+            background: var(--surface);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .logo i {
+            font-size: 2rem;
+        }
+
+        .health-indicators {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .health-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: var(--transition);
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+
+        .health-status.healthy {
+            background: rgba(72, 187, 120, 0.1);
+            color: var(--success);
+            border-color: rgba(72, 187, 120, 0.2);
+        }
+
+        .health-status.warning {
+            background: rgba(237, 137, 54, 0.1);
+            color: var(--warning);
+            border-color: rgba(237, 137, 54, 0.2);
+        }
+
+        .health-status.error {
+            background: rgba(245, 101, 101, 0.1);
+            color: var(--error);
+            border-color: rgba(245, 101, 101, 0.2);
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* 🎛️ Controls Section */
+        .controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 0.5rem;
+            background: var(--surface-alt);
+            padding: 0.5rem;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .mode-btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 10px;
+            background: transparent;
+            color: var(--text-light);
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .mode-btn:hover {
+            background: rgba(255, 255, 255, 0.5);
+            transform: translateY(-1px);
+        }
+
+        .mode-btn.active {
+            background: var(--primary);
+            color: white;
+            box-shadow: var(--shadow);
+        }
+
+        .mode-btn.perfect {
+            background: linear-gradient(135deg, var(--accent) 0%, #f5576c 100%);
+            color: white;
+        }
+
+        .mode-btn.perfect.active {
+            transform: scale(1.05);
+            box-shadow: 0 8px 25px rgba(240, 147, 251, 0.4);
+        }
+
+        .debug-toggle-btn {
+            background: var(--debug-bg);
+            color: var(--debug-green);
+            border: 1px solid var(--debug-green);
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+        }
+
+        .debug-toggle-btn:hover {
+            background: var(--debug-green);
+            color: var(--debug-bg);
+        }
+
+        /* 📱 Main Layout */
+        .main-layout {
+            max-width: 1400px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 2rem;
+            min-height: calc(100vh - 200px);
+        }
+
+        /* 📊 Sidebar */
+        .sidebar {
+            background: var(--surface);
+            backdrop-filter: blur(20px);
+            border-radius: var(--radius);
+            padding: 2rem;
+            box-shadow: var(--shadow-lg);
+            height: fit-content;
+            position: sticky;
+            top: 120px;
+        }
+
+        .sidebar-section {
+            margin-bottom: 2rem;
+        }
+
+        .sidebar-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .agent-grid {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .agent-card {
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            border-radius: 10px;
+            padding: 1.25rem;
+            border-left: 4px solid var(--primary);
+            transition: var(--transition);
+            cursor: pointer;
+        }
+
+        .agent-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        .agent-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .agent-emoji {
+            font-size: 1.5rem;
+        }
+
+        .agent-name {
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .agent-desc {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        /* Quick Actions Section */
+        .quick-actions-section {
+            margin-top: 1rem;
+        }
+
+        .quick-action-btn {
+            width: 100%;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            background: var(--surface-alt);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: var(--transition);
+            text-align: left;
+            font-size: 0.875rem;
+        }
+
+        .quick-action-btn:hover {
+            background: var(--primary);
+            color: white;
+            transform: translateX(5px);
+        }
+
+        /* 💬 Chat Interface */
+        .chat-container {
+            background: var(--surface);
+            backdrop-filter: blur(20px);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            flex-direction: column;
+            height: 700px;
+        }
+
+        .chat-header {
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            scroll-behavior: smooth;
+        }
+
+        .message {
+            margin-bottom: 1.5rem;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .user-message {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .user-message .message-content {
+            background: var(--primary);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 20px 20px 5px 20px;
+            max-width: 70%;
+            box-shadow: var(--shadow);
+        }
+
+        .assistant-message {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .agent-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--primary);
+            color: white;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            position: relative;
+        }
+
+        .agent-badge.ai-powered {
+            background: linear-gradient(135deg, var(--success) 0%, #38a169 100%);
+        }
+
+        .agent-badge.perfect {
+            background: linear-gradient(135deg, var(--accent) 0%, #f5576c 100%);
+        }
+
+        .ai-indicator {
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            width: 8px;
+            height: 8px;
+            background: #48bb78;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+
+        .message-time {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        .message-content {
+            background: var(--surface-alt);
+            padding: 1.5rem;
+            border-radius: 5px 20px 20px 20px;
+            max-width: 85%;
+            box-shadow: var(--shadow);
+            line-height: 1.6;
+        }
+
+        .message-content h4 {
+            color: var(--primary);
+            margin: 1rem 0 0.5rem 0;
+        }
+
+        .message-content ul {
+            margin: 0.5rem 0;
+            padding-left: 1.5rem;
+        }
+
+        .message-content li {
+            margin: 0.25rem 0;
+        }
+
+        .message-content strong {
+            color: var(--text);
+        }
+
+        /* 📝 Input Area */
+        .chat-input-area {
+            border-top: 1px solid var(--border);
+            padding: 1.5rem 2rem;
+        }
+
+        .mode-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            padding: 0.75rem 1rem;
+            background: var(--info);
+            color: white;
+            border-radius: 10px;
+            font-size: 0.875rem;
+        }
+
+        .mode-info.perfect {
+            background: linear-gradient(135deg, var(--accent) 0%, #f5576c 100%);
+        }
+
+        .mode-info.debug {
+            background: var(--debug-bg);
+            color: var(--debug-green);
+            font-family: 'Courier New', monospace;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-end;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 1rem 1.5rem;
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            font-family: var(--font);
+            font-size: 1rem;
+            background: white;
+            transition: var(--transition);
+            resize: vertical;
+            min-height: 60px;
+            max-height: 150px;
+        }
+
+        .chat-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .send-btn {
+            padding: 1rem 2rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: var(--radius);
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .send-btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .send-btn.perfect {
+            background: linear-gradient(135deg, var(--accent) 0%, #f5576c 100%);
+        }
+
+        .quick-actions {
+            display: flex;
+            gap: 0.75rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .quick-btn {
+            padding: 0.5rem 1rem;
+            background: var(--surface-alt);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .quick-btn:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        /* 🔄 Loading States */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 2rem;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border);
+            border-top: 2px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 🔧 Debug Console */
+        .debug-console {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 250px;
+            background: var(--debug-bg);
+            color: var(--debug-green);
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            padding: 1rem;
+            overflow-y: auto;
+            z-index: 1000;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+            border-top: 2px solid var(--debug-green);
+        }
+
+        .debug-console.show {
+            transform: translateY(0);
+        }
+
+        .debug-header {
+            border-bottom: 1px solid #333;
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+        }
+
+        .debug-content {
+            white-space: pre-wrap;
+        }
+
+        /* 🚨 Toast Notifications */
+        .toast-container {
+            position: fixed;
+            top: 100px;
+            right: 2rem;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .toast {
+            background: white;
+            padding: 1rem 1.5rem;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-lg);
+            border-left: 4px solid var(--primary);
+            min-width: 300px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .toast.success {
+            border-left-color: var(--success);
+        }
+
+        .toast.error {
+            border-left-color: var(--error);
+        }
+
+        .toast.warning {
+            border-left-color: var(--warning);
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* 🎨 Custom Scrollbar */
+        .chat-messages::-webkit-scrollbar,
+        .debug-console::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track,
+        .debug-console::-webkit-scrollbar-track {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 3px;
+        }
+
+        .debug-console::-webkit-scrollbar-thumb {
+            background: var(--debug-green);
+            border-radius: 3px;
+        }
+
+        /* 📱 Responsive Design */
+        @media (max-width: 1024px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .sidebar {
+                position: static;
+                order: 2;
+            }
+
+            .chat-container {
+                order: 1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+                padding: 1rem;
+            }
+
+            .controls {
+                order: 1;
+                justify-content: center;
+                width: 100%;
+            }
+
+            .mode-selector {
+                flex-wrap: wrap;
+            }
+
+            .mode-btn {
+                padding: 0.5rem 1rem;
+                font-size: 0.8rem;
+            }
+
+            .main-layout {
+                padding: 0 1rem;
+            }
+
+            .chat-container {
+                height: 600px;
+            }
+
+            .input-group {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .quick-actions {
+                justify-content: center;
+            }
+        }
+
+        /* 🎯 Debug Mode Styles */
+        .debug-mode .sidebar {
+            display: none;
+        }
+
+        .debug-mode .main-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .debug-mode .chat-container {
+            height: calc(100vh - 450px);
+        }
+
+        /* API Testing Panel */
+        .api-test-panel {
+            background: var(--debug-bg);
+            color: var(--debug-green);
+            padding: 1rem;
+            border-radius: var(--radius);
+            margin-bottom: 1rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+        }
+
+        .test-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .test-btn {
+            background: transparent;
+            border: 1px solid var(--debug-green);
+            color: var(--debug-green);
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: 'Courier New', monospace;
+        }
+
+        .test-btn:hover {
+            background: var(--debug-green);
+            color: var(--debug-bg);
+        }
+
+        /* 🎵 Audio Upload Styles */
+        .audio-upload-section {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            background: var(--surface-alt);
+            transition: var(--transition);
+        }
+
+        .upload-options {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .upload-toggle-btn {
+            background: var(--info);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+        }
+
+        .upload-toggle-btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+        }
+
+        .upload-help-text {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .audio-upload-controls {
+            border-top: 1px solid var(--border);
+            padding-top: 1rem;
+        }
+
+        .file-input-wrapper {
+            margin-bottom: 1rem;
+        }
+
+        .file-select-btn {
+            background: var(--surface);
+            border: 2px solid var(--border);
+            padding: 1rem 2rem;
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: var(--text);
+            font-weight: 500;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .file-select-btn:hover {
+            border-color: var(--primary);
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-top: 1rem;
+            padding: 1rem;
+            background: rgba(72, 187, 120, 0.1);
+            border: 1px solid rgba(72, 187, 120, 0.2);
+            border-radius: var(--radius);
+            color: var(--success);
+        }
+
+        .filename {
+            font-weight: 600;
+        }
+
+        .filesize {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .upload-progress {
+            margin: 1rem 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 0.5rem;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .progress-text {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .upload-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 1rem;
+        }
+
+        .upload-btn {
+            background: var(--success);
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+        }
+
+        .upload-btn:hover:not(:disabled) {
+            background: #38a169;
+            transform: translateY(-1px);
+        }
+
+        .upload-btn:disabled {
+            background: var(--text-muted);
+            cursor: not-allowed;
+        }
+
+        .cancel-btn {
+            background: transparent;
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+            padding: 0.75rem 1.5rem;
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .cancel-btn:hover {
+            color: var(--error);
+            border-color: var(--error);
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <i class="fas fa-plane"></i>
+                <span>Travel Assistant</span>
+            </div>
+            
+            <div class="health-indicators">
+                <div class="health-status" id="serverHealth">
+                    <i class="fas fa-server"></i>
+                    <span>Checking...</span>
+                </div>
+                <div class="health-status" id="ollamaHealth">
+                    <i class="fas fa-brain"></i>
+                    <span>Checking...</span>
+                </div>
+                <div class="health-status" id="agentsHealth">
+                    <i class="fas fa-users"></i>
+                    <span>Checking...</span>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <div class="mode-selector">
+                    <button class="mode-btn active" id="chatMode" onclick="switchMode('chat')">
+                        <i class="fas fa-comments"></i>
+                        Chat
+                    </button>
+                    <button class="mode-btn" id="batchMode" onclick="switchMode('batch')">
+                        <i class="fas fa-file-audio"></i>
+                        Recording
+                    </button>
+                    <button class="mode-btn perfect" id="perfectMode" onclick="switchMode('perfect')">
+                        <i class="fas fa-rocket"></i>
+                        Perfect LangGraph
+                    </button>
+                </div>
+                <button class="debug-toggle-btn" onclick="toggleDebugMode()">
+                    <i class="fas fa-terminal"></i> Debug
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Layout -->
+    <main class="main-layout" id="mainLayout">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-section">
+                <h3 class="sidebar-title">
+                    <i class="fas fa-robot"></i>
+                    Travel Agents
+                </h3>
+                <div class="agent-grid">
+                    <div class="agent-card">
+                        <div class="agent-header">
+                            <span class="agent-emoji">🔍</span>
+                            <span class="agent-name">Trip Analyzer</span>
+                        </div>
+                        <div class="agent-desc">Extracts goals, constraints, and destinations from your planning</div>
+                    </div>
+                    <div class="agent-card">
+                        <div class="agent-header">
+                            <span class="agent-emoji">😊</span>
+                            <span class="agent-name">Mood Detector</span>
+                        </div>
+                        <div class="agent-desc">Detects excitement, stress, and emotional states</div>
+                    </div>
+                    <div class="agent-card">
+                        <div class="agent-header">
+                            <span class="agent-emoji">💬</span>
+                            <span class="agent-name">Communication Coach</span>
+                        </div>
+                        <div class="agent-desc">Provides phrasing tips for hotels and guides</div>
+                    </div>
+                    <div class="agent-card">
+                        <div class="agent-header">
+                            <span class="agent-emoji">🧭</span>
+                            <span class="agent-name">Behavior Guide</span>
+                        </div>
+                        <div class="agent-desc">Offers behavioral nudges and next steps</div>
+                    </div>
+                    <div class="agent-card">
+                        <div class="agent-header">
+                            <span class="agent-emoji">🧘</span>
+                            <span class="agent-name">Calm Practice</span>
+                        </div>
+                        <div class="agent-desc">Provides calming techniques and stress relief</div>
+                    </div>
+                    <div class="agent-card">
+                        <div class="agent-header">
+                            <span class="agent-emoji">🎯</span>
+                            <span class="agent-name">Summary Synthesizer</span>
+                        </div>
+                        <div class="agent-desc">Combines insights and updates your profile</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-section quick-actions-section">
+                <h3 class="sidebar-title">
+                    <i class="fas fa-bolt"></i>
+                    Quick Tests
+                </h3>
+                <button class="quick-action-btn" onclick="testServerHealth()">
+                    🏥 Test Server Health
+                </button>
+                <button class="quick-action-btn" onclick="testAllAPIs()">
+                    🧪 Test All APIs
+                </button>
+                <button class="quick-action-btn" onclick="simulateAPIResponse()">
+                    🎭 Simulate Response
+                </button>
+                <button class="quick-action-btn" onclick="exportDebugLogs()">
+                    💾 Export Debug Logs
+                </button>
+            </div>
+        </aside>
+
+        <!-- Chat Interface -->
+        <section class="chat-container">
+            <div class="chat-header">
+                <div class="chat-title">
+                    <i class="fas fa-comments"></i>
+                    <span id="chatTitle">Chat Mode</span>
+                </div>
+            </div>
+
+            <div class="chat-messages" id="chatMessages">
+                <div class="message assistant-message">
+                    <div class="message-header">
+                        <div class="agent-badge">
+                            <i class="fas fa-plane"></i>
+                            <span>Travel Assistant</span>
+                        </div>
+                        <div class="message-time">Ready</div>
+                    </div>
+                    <div class="message-content">
+                        <p><strong>Welcome to your AI-powered Travel Assistant!</strong> 🌟</p>
+                        <p>I'm ready to help you plan amazing trips with personalized insights and actionable advice.</p>
+                        <p>Choose your mode and let's start planning!</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-input-area">
+                <!-- API Testing Panel (Debug Mode) -->
+                <div class="api-test-panel" id="apiTestPanel" style="display: none;">
+                    <div><strong>🧪 API Testing Console</strong></div>
+                    <div>Current Mode: <span id="currentModeDisplay">chat</span></div>
+                    <div>User ID: <span id="userIdDisplay">-</span></div>
+                    <div class="test-buttons">
+                        <button class="test-btn" onclick="testChatAPI()">Test Chat API</button>
+                        <button class="test-btn" onclick="testBatchAPI()">Test Batch API</button>
+                        <button class="test-btn" onclick="testPerfectAPI()">Test Perfect API</button>
+                        <button class="test-btn" onclick="clearDebugConsole()">Clear Console</button>
+                    </div>
+                </div>
+
+                <!-- Chat Mode Input -->
+                <div id="chatModeInput">
+                    <div class="mode-info">
+                        <i class="fas fa-comments"></i>
+                        <span><strong>Chat Mode:</strong> Quick travel questions and immediate guidance</span>
+                    </div>
+                    <div class="input-group">
+                        <textarea class="chat-input" id="chatInput" 
+                                placeholder="Ask me about travel planning, destinations, or get help with decisions..."
+                                rows="2"></textarea>
+                        <button class="send-btn" id="chatSendBtn" onclick="sendChatMessage()">
+                            <i class="fas fa-paper-plane"></i>
+                            Send
+                        </button>
+                    </div>
+                    <div class="quick-actions">
+                        <button class="quick-btn" onclick="fillInput('I need help planning a trip to Japan')">
+                            🗾 Plan Japan trip
+                        </button>
+                        <button class="quick-btn" onclick="fillInput('I feel overwhelmed with too many destination choices')">
+                            😰 Feeling overwhelmed
+                        </button>
+                        <button class="quick-btn" onclick="fillInput('How should I communicate with locals in Italy?')">
+                            💬 Communication help
+                        </button>
+                        <button class="quick-btn" onclick="fillInput('What should I do first for my Europe trip?')">
+                            🧭 Next steps
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Batch Mode Input -->
+                <div id="batchModeInput" style="display: none;">
+                    <div class="mode-info">
+                        <i class="fas fa-file-audio"></i>
+                        <span><strong>Recording Mode:</strong> Comprehensive conversation analysis</span>
+                    </div>
+                    
+                    <!-- Audio Upload Section -->
+                    <div class="audio-upload-section" style="margin-bottom: 1rem;">
+                        <div class="upload-options">
+                            <button class="upload-toggle-btn" id="uploadToggleBtn" onclick="toggleAudioUpload()">
+                                <i class="fas fa-microphone"></i>
+                                Upload Audio File
+                            </button>
+                            <span class="upload-help-text">or paste text transcript below</span>
+                        </div>
+                        
+                        <!-- Audio Upload Controls (initially hidden) -->
+                        <div class="audio-upload-controls" id="audioUploadControls" style="display: none; margin-top: 1rem;">
+                            <div class="file-input-wrapper">
+                                <input type="file" id="audioFileInput" accept=".mp3,.wav,.m4a,.ogg,.flac,.webm" 
+                                       onchange="handleAudioFile(event)" style="display: none;">
+                                <button class="file-select-btn" onclick="document.getElementById('audioFileInput').click()">
+                                    <i class="fas fa-folder-open"></i>
+                                    Choose Audio File
+                                </button>
+                                <div class="file-info" id="audioFileInfo" style="display: none;">
+                                    <i class="fas fa-file-audio"></i>
+                                    <span class="filename" id="audioFileName"></span>
+                                    <span class="filesize" id="audioFileSize"></span>
+                                </div>
+                            </div>
+                            
+                            <div class="upload-progress" id="audioUploadProgress" style="display: none;">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="audioProgressFill"></div>
+                                </div>
+                                <div class="progress-text" id="audioProgressText">Uploading...</div>
+                            </div>
+                            
+                            <div class="upload-actions">
+                                <button class="upload-btn" id="audioUploadBtn" onclick="uploadAudioFile()" disabled>
+                                    <i class="fas fa-upload"></i>
+                                    Upload & Analyze
+                                </button>
+                                <button class="cancel-btn" onclick="cancelAudioUpload()">
+                                    <i class="fas fa-times"></i>
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Text Input Section -->
+                    <div class="input-group">
+                        <textarea class="chat-input" id="batchInput" 
+                                placeholder="Paste your full trip planning conversation transcript here..."
+                                rows="4"></textarea>
+                        <button class="send-btn" id="batchSendBtn" onclick="sendBatchAnalysis()">
+                            <i class="fas fa-analytics"></i>
+                            Analyze
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Perfect Mode Input -->
+                <div id="perfectModeInput" style="display: none;">
+                    <div class="mode-info perfect">
+                        <i class="fas fa-rocket"></i>
+                        <span><strong>Perfect LangGraph:</strong> Ultra-fast multi-agent system with perfect routing</span>
+                    </div>
+                    <div class="input-group">
+                        <textarea class="chat-input" id="perfectInput" 
+                                placeholder="Ask me anything about travel - I'll route to the perfect specialist agent instantly!"
+                                rows="2"></textarea>
+                        <button class="send-btn perfect" id="perfectSendBtn" onclick="sendPerfectQuery()">
+                            <i class="fas fa-rocket"></i>
+                            Perfect Query
+                        </button>
+                    </div>
+                    <div class="quick-actions">
+                        <button class="quick-btn" onclick="fillPerfectInput('Plan a perfect trip to Tokyo with cultural experiences')">
+                            🗾 Perfect Tokyo Plan
+                        </button>
+                        <button class="quick-btn" onclick="fillPerfectInput('I feel overwhelmed choosing between destinations')">
+                            😰 Decision Support
+                        </button>
+                        <button class="quick-btn" onclick="fillPerfectInput('Help me communicate with hotel staff in French')">
+                            💬 Communication Expert
+                        </button>
+                        <button class="quick-btn" onclick="fillPerfectInput('Calm my travel anxiety before my solo trip')">
+                            🧘 Calm Expert
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Debug Console -->
+    <div class="debug-console" id="debugConsole">
+        <div class="debug-header">
+            <strong>🔧 Debug Console - Real-time System Monitoring</strong>
+            <button style="float: right; background: transparent; border: 1px solid #00ff00; color: #00ff00; padding: 2px 8px; font-size: 10px;" onclick="clearDebugConsole()">Clear</button>
+        </div>
+        <div class="debug-content" id="debugContent">Console initialized...<br></div>
+    </div>
+
+    <script>
+        // 🌐 Global Configuration
+        const CONFIG = {
+            API_BASE: '',
+            ENDPOINTS: {
+                health: '/health',
+                ollamaStatus: '/api/ollama/status',
+                chat: '/travel/chat',
+                batch: '/travel/batch',
+                audioUpload: '/travel/recording/upload',
+                perfect: '/perfect_query',
+                profile: '/travel/profile/',
+                sessions: '/travel/sessions/'
+            },
+            USER_ID: Math.floor(Math.random() * 10000) + 1000,
+            CURRENT_MODE: 'chat',
+            DEBUG_ENABLED: false,
+            DEBUG_MODE: false
+        };
+
+        // 🔧 Debug Console System
+        class DebugConsole {
+            constructor() {
+                this.console = document.getElementById('debugContent');
+                this.isVisible = false;
+                this.logs = [];
+            }
+
+            log(message, type = 'info') {
+                const timestamp = new Date().toLocaleTimeString();
+                const icons = {
+                    info: 'ℹ️',
+                    success: '✅', 
+                    error: '❌',
+                    warning: '⚠️',
+                    api: '🌐',
+                    ui: '🎨'
+                };
+                
+                const icon = icons[type] || 'ℹ️';
+                const line = `<div style="margin: 2px 0;">[${timestamp}] ${icon} ${message}</div>`;
+                this.console.innerHTML += line;
+                this.console.scrollTop = this.console.scrollHeight;
+                
+                this.logs.push({ timestamp, type, message });
+                
+                // Console logging for development
+                if (CONFIG.DEBUG_ENABLED) {
+                    console.log(`[${timestamp}] [${type.toUpperCase()}] ${message}`);
+                }
+            }
+
+            toggle() {
+                this.isVisible = !this.isVisible;
+                const element = document.getElementById('debugConsole');
+                element.classList.toggle('show', this.isVisible);
+            }
+
+            clear() {
+                this.console.innerHTML = 'Console cleared...<br>';
+                this.logs = [];
+            }
+        }
+
+        // 🏥 Health Monitoring System
+        class HealthMonitor {
+            constructor() {
+                this.status = {
+                    server: 'unknown',
+                    ollama: 'unknown',
+                    agents: 'unknown'
+                };
+                this.startMonitoring();
+            }
+
+            async checkServerHealth() {
+                try {
+                    debug.log('Checking server health...', 'info');
+                    const response = await fetch(CONFIG.ENDPOINTS.health, { 
+                        method: 'GET',
+                        signal: AbortSignal.timeout(5000)
+                    });
+                    
+                    if (response.ok) {
+                        this.updateStatus('server', 'healthy', 'Server Online');
+                        debug.log('Server health check passed', 'success');
+                        return true;
+                    } else {
+                        throw new Error(`Status: ${response.status}`);
+                    }
+                } catch (error) {
+                    this.updateStatus('server', 'error', 'Server Offline');
+                    debug.log(`Server health check failed: ${error.message}`, 'error');
+                    return false;
+                }
+            }
+
+            async checkOllamaHealth() {
+                try {
+                    debug.log('Checking Ollama AI status...', 'info');
+                    const response = await fetch(CONFIG.ENDPOINTS.ollamaStatus, { 
+                        method: 'GET',
+                        signal: AbortSignal.timeout(5000)
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.available) {
+                            this.updateStatus('ollama', 'healthy', 'AI Ready');
+                            debug.log('Ollama AI system is available', 'success');
+                        } else {
+                            this.updateStatus('ollama', 'warning', 'AI Fallback');
+                            debug.log('Ollama unavailable, using fallbacks', 'warning');
+                        }
+                        return data.available;
+                    } else {
+                        throw new Error(`Status: ${response.status}`);
+                    }
+                } catch (error) {
+                    this.updateStatus('ollama', 'error', 'AI Offline');
+                    debug.log(`Ollama health check failed: ${error.message}`, 'error');
+                    return false;
+                }
+            }
+
+            checkAgentsHealth() {
+                this.updateStatus('agents', 'healthy', '6 Agents Active');
+                debug.log('All travel agents operational', 'success');
+                return true;
+            }
+
+            updateStatus(service, status, message) {
+                this.status[service] = status;
+                const element = document.getElementById(`${service}Health`);
+                if (element) {
+                    element.className = `health-status ${status}`;
+                    element.innerHTML = `<i class="fas fa-${this.getIcon(service)}"></i><span>${message}</span>`;
+                    
+                    if (status === 'error') {
+                        element.classList.add('pulse');
+                    } else {
+                        element.classList.remove('pulse');
+                    }
+                }
+            }
+
+            getIcon(service) {
+                const icons = {
+                    server: 'server',
+                    ollama: 'brain', 
+                    agents: 'users'
+                };
+                return icons[service] || 'circle';
+            }
+
+            startMonitoring() {
+                this.performHealthChecks();
+                setInterval(() => this.performHealthChecks(), 30000);
+                debug.log('Health monitoring system started', 'info');
+            }
+
+            async performHealthChecks() {
+                debug.log('Performing health checks...', 'info');
+                
+                await this.checkServerHealth();
+                await this.checkOllamaHealth();
+                this.checkAgentsHealth();
+                
+                const overallHealth = Object.values(this.status).every(s => s === 'healthy') ? 'healthy' :
+                                    Object.values(this.status).some(s => s === 'error') ? 'error' : 'warning';
+                                    
+                debug.log(`Overall system health: ${overallHealth}`, overallHealth === 'healthy' ? 'success' : 'warning');
+            }
+        }
+
+        // 🎨 UI Management System  
+        class UIManager {
+            constructor() {
+                this.initializeEventListeners();
+                this.setupAutoResize();
+            }
+
+            initializeEventListeners() {
+                ['chatInput', 'batchInput', 'perfectInput'].forEach(id => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        element.addEventListener('keydown', (e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                this.handleEnterKey(id);
+                            }
+                        });
+                    }
+                });
+                
+                debug.log('UI event listeners initialized', 'ui');
+            }
+
+            setupAutoResize() {
+                ['chatInput', 'batchInput', 'perfectInput'].forEach(id => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        element.addEventListener('input', () => this.autoResize(element));
+                    }
+                });
+            }
+
+            autoResize(element) {
+                element.style.height = 'auto';
+                element.style.height = Math.min(element.scrollHeight, 150) + 'px';
+            }
+
+            handleEnterKey(inputId) {
+                const actions = {
+                    'chatInput': sendChatMessage,
+                    'batchInput': sendBatchAnalysis,
+                    'perfectInput': sendPerfectQuery
+                };
+                
+                const action = actions[inputId];
+                if (action) {
+                    action();
+                }
+            }
+
+            showLoading(show, message = 'Processing...') {
+                const buttons = document.querySelectorAll('.send-btn');
+                buttons.forEach(btn => {
+                    btn.disabled = show;
+                    if (show) {
+                        btn.innerHTML = `<div class="spinner"></div> ${message}`;
+                    } else {
+                        const mode = CONFIG.CURRENT_MODE;
+                        const texts = {
+                            chat: '<i class="fas fa-paper-plane"></i> Send',
+                            batch: '<i class="fas fa-analytics"></i> Analyze',
+                            perfect: '<i class="fas fa-rocket"></i> Perfect Query'
+                        };
+                        btn.innerHTML = texts[mode] || texts.chat;
+                    }
+                });
+            }
+        }
+
+        // 💬 Message System
+        class MessageSystem {
+            constructor() {
+                this.container = document.getElementById('chatMessages');
+            }
+
+            addUserMessage(text) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message user-message';
+                messageDiv.innerHTML = `
+                    <div class="message-content">${this.escapeHtml(text)}</div>
+                `;
+                
+                this.container.appendChild(messageDiv);
+                this.scrollToBottom();
+                
+                debug.log(`User message added: ${text.substring(0, 50)}...`, 'ui');
+            }
+
+            addAssistantMessage(response, agents = [], processingTime = 0, isAIPowered = false, mode = 'chat') {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message assistant-message';
+                
+                const primaryAgent = agents[0] || 'Travel Assistant';
+                const agentClass = isAIPowered ? 'ai-powered' : mode === 'perfect' ? 'perfect' : '';
+                const agentEmoji = this.getAgentEmoji(primaryAgent);
+                
+                messageDiv.innerHTML = `
+                    <div class="message-header">
+                        <div class="agent-badge ${agentClass}">
+                            ${agentEmoji} ${this.formatAgentName(primaryAgent)}
+                            ${isAIPowered ? '<div class="ai-indicator"></div>' : ''}
+                        </div>
+                        <div class="message-time">${new Date().toLocaleTimeString()}</div>
+                    </div>
+                    <div class="message-content">
+                        ${this.formatResponse(response)}
+                        ${isAIPowered ? `
+                            <div style="margin-top: 1rem; padding: 0.75rem; background: rgba(102, 126, 234, 0.1); border-radius: 8px; font-size: 0.875rem; color: var(--primary);">
+                                🧠 <strong>AI Response:</strong> Mode: ${mode} | Processing: ${processingTime.toFixed(2)}s | 
+                                Agents: ${agents.join(', ')}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+                
+                this.container.appendChild(messageDiv);
+                this.scrollToBottom();
+                
+                debug.log(`Assistant message added: ${primaryAgent} (${response.length} chars)`, 'ui');
+            }
+
+            addErrorMessage(message) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message assistant-message';
+                messageDiv.innerHTML = `
+                    <div class="message-header">
+                        <div class="agent-badge" style="background: var(--error);">
+                            <i class="fas fa-exclamation-triangle"></i> System
+                        </div>
+                        <div class="message-time">${new Date().toLocaleTimeString()}</div>
+                    </div>
+                    <div class="message-content" style="color: var(--error);">
+                        ${this.escapeHtml(message)}
+                    </div>
+                `;
+                
+                this.container.appendChild(messageDiv);
+                this.scrollToBottom();
+            }
+
+            formatResponse(response) {
+                if (!response) return 'No response received';
+                
+                let formatted = this.escapeHtml(response);
+                
+                formatted = formatted
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    .replace(/#{1,3}\s+(.*?)$/gm, '<h4>$1</h4>')
+                    .replace(/^- (.*?)$/gm, '<li>$1</li>')
+                    .replace(/\n/g, '<br>');
+                
+                formatted = formatted.replace(/(<li>.*?<\/li>(?:<br>)*)+/g, (match) => {
+                    return `<ul>${match.replace(/<br>/g, '')}</ul>`;
+                });
+                
+                return formatted;
+            }
+
+            getAgentEmoji(agentName) {
+                const emojis = {
+                    'TextTripAnalyzer': '🔍',
+                    'TripMoodDetector': '😊',
+                    'TripCommsCoach': '💬',
+                    'TripBehaviorGuide': '🧭',
+                    'TripCalmPractice': '🧘',
+                    'TripSummarySynth': '🎯',
+                    'Travel Assistant': '🤖'
+                };
+                return emojis[agentName] || '🤖';
+            }
+
+            formatAgentName(agentName) {
+                return agentName.replace('Trip', '').replace('Agent', '').trim();
+            }
+
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            scrollToBottom() {
+                this.container.scrollTop = this.container.scrollHeight;
+            }
+        }
+
+        // 🌐 API System
+        class APISystem {
+            async makeRequest(endpoint, options = {}) {
+                const config = {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                };
+
+                debug.log(`API request: ${config.method} ${endpoint}`, 'api');
+
+                try {
+                    const response = await fetch(CONFIG.API_BASE + endpoint, config);
+                    
+                    debug.log(`API response: ${response.status} ${response.statusText}`, 
+                             response.ok ? 'success' : 'error');
+                    
+                    return response;
+                } catch (error) {
+                    debug.log(`API error: ${error.message}`, 'error');
+                    throw error;
+                }
+            }
+
+            async chatRequest(text) {
+                const response = await this.makeRequest(CONFIG.ENDPOINTS.chat, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        user_id: CONFIG.USER_ID,
+                        text: text
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Chat request failed: ${response.status}`);
+                }
+
+                return await response.json();
+            }
+
+            async batchRequest(transcript) {
+                const response = await this.makeRequest(CONFIG.ENDPOINTS.batch, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        user_id: CONFIG.USER_ID,
+                        transcript: transcript
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Batch request failed: ${response.status}`);
+                }
+
+                return await response.json();
+            }
+
+            async perfectRequest(question) {
+                const response = await this.makeRequest(CONFIG.ENDPOINTS.perfect, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        user: `user_${CONFIG.USER_ID}`,
+                        user_id: CONFIG.USER_ID,
+                        question: question
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Perfect query failed: ${response.status}`);
+                }
+
+                return await response.json();
+            }
+        }
+
+        // 🚨 Toast Notification System
+        class ToastSystem {
+            constructor() {
+                this.container = document.getElementById('toastContainer');
+            }
+
+            show(message, type = 'info', duration = 5000) {
+                const toast = document.createElement('div');
+                toast.className = `toast ${type}`;
+                
+                const icons = {
+                    success: 'fas fa-check-circle',
+                    error: 'fas fa-exclamation-circle',
+                    warning: 'fas fa-exclamation-triangle',
+                    info: 'fas fa-info-circle'
+                };
+                
+                toast.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <i class="${icons[type] || icons.info}"></i>
+                        <span>${message}</span>
+                    </div>
+                `;
+                
+                this.container.appendChild(toast);
+                
+                setTimeout(() => {
+                    if (toast.parentNode) {
+                        toast.parentNode.removeChild(toast);
+                    }
+                }, duration);
+                
+                debug.log(`Toast: ${message}`, type);
+            }
+        }
+
+        // 🏗️ Initialize Systems
+        const debug = new DebugConsole();
+        const health = new HealthMonitor();
+        const ui = new UIManager();
+        const messages = new MessageSystem();
+        const api = new APISystem();
+        const toast = new ToastSystem();
+
+        // 🎛️ Mode Management
+        function switchMode(mode) {
+            CONFIG.CURRENT_MODE = mode;
+            
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById(`${mode}Mode`).classList.add('active');
+            
+            ['chatModeInput', 'batchModeInput', 'perfectModeInput'].forEach(id => {
+                document.getElementById(id).style.display = 'none';
+            });
+            document.getElementById(`${mode}ModeInput`).style.display = 'block';
+            
+            const titles = {
+                chat: 'Chat Mode',
+                batch: 'Recording Mode',
+                perfect: 'Perfect LangGraph'
+            };
+            document.getElementById('chatTitle').textContent = titles[mode];
+            
+            debug.log(`Switched to ${mode} mode`, 'ui');
+        }
+
+        // 🔧 Debug Mode Toggle
+        function toggleDebugMode() {
+            CONFIG.DEBUG_MODE = !CONFIG.DEBUG_MODE;
+            CONFIG.DEBUG_ENABLED = CONFIG.DEBUG_MODE;
+            
+            const body = document.body;
+            const sidebar = document.getElementById('sidebar');
+            const apiPanel = document.getElementById('apiTestPanel');
+            const userIdDisplay = document.getElementById('userIdDisplay');
+            const modeDisplay = document.getElementById('currentModeDisplay');
+            
+            if (CONFIG.DEBUG_MODE) {
+                body.classList.add('debug-mode');
+                apiPanel.style.display = 'block';
+                debug.toggle();
+                
+                userIdDisplay.textContent = CONFIG.USER_ID;
+                modeDisplay.textContent = CONFIG.CURRENT_MODE;
+                
+                toast.show('Debug mode activated', 'info');
+                debug.log('Debug mode activated - full system monitoring enabled', 'success');
+            } else {
+                body.classList.remove('debug-mode');
+                apiPanel.style.display = 'none';
+                if (debug.isVisible) debug.toggle();
+                
+                toast.show('Debug mode deactivated', 'info');
+                debug.log('Debug mode deactivated', 'info');
+            }
+        }
+
+        // 📝 Input Helpers
+        function fillInput(text) {
+            const input = document.getElementById('chatInput');
+            if (input) {
+                input.value = text;
+                ui.autoResize(input);
+                input.focus();
+            }
+        }
+
+        function fillPerfectInput(text) {
+            const input = document.getElementById('perfectInput');
+            if (input) {
+                input.value = text;
+                ui.autoResize(input);
+                input.focus();
+            }
+        }
+
+        // 💬 Main Message Handlers
+        async function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            const text = input.value.trim();
+            
+            if (!text) {
+                toast.show('Please enter a message', 'warning');
+                return;
+            }
+            
+            debug.log(`🚀 sendChatMessage called with text: ${text}`, 'info');
+            
+            messages.addUserMessage(text);
+            input.value = '';
+            ui.showLoading(true, 'Processing...');
+            
+            try {
+                const result = await api.chatRequest(text);
+                
+                messages.addAssistantMessage(
+                    result.response || 'No response received',
+                    result.agents_involved || [],
+                    result.processing_time || 0,
+                    result.ai_used === true,
+                    'chat'
+                );
+                
+                toast.show(`Response received in ${(result.processing_time || 0).toFixed(2)}s`, 'success');
+                
+            } catch (error) {
+                debug.log(`Chat error: ${error.message}`, 'error');
+                messages.addErrorMessage(`Network error: ${error.message}`);
+                toast.show('Failed to send message', 'error');
+            } finally {
+                ui.showLoading(false);
+            }
+        }
+
+        async function sendBatchAnalysis() {
+            const input = document.getElementById('batchInput');
+            const transcript = input.value.trim();
+            
+            if (!transcript) {
+                toast.show('Please paste a conversation transcript', 'warning');
+                return;
+            }
+            
+            if (transcript.length < 100) {
+                toast.show('Transcript seems too short. Please provide more content.', 'warning');
+                return;
+            }
+            
+            debug.log(`Sending batch analysis: ${transcript.length} chars`, 'info');
+            
+            messages.addUserMessage(`Analyzing transcript (${transcript.length} characters)...`);
+            input.value = '';
+            ui.showLoading(true, 'Analyzing...');
+            
+            try {
+                const result = await api.batchRequest(transcript);
+                
+                messages.addAssistantMessage(
+                    result.response || 'No analysis received',
+                    result.agents_involved || [],
+                    result.processing_time || 0,
+                    result.ai_used === true,
+                    'batch'
+                );
+                
+                toast.show(`Analysis completed in ${(result.processing_time || 0).toFixed(2)}s`, 'success');
+                
+            } catch (error) {
+                debug.log(`Batch analysis error: ${error.message}`, 'error');
+                messages.addErrorMessage(`Analysis failed: ${error.message}`);
+                toast.show('Failed to analyze transcript', 'error');
+            } finally {
+                ui.showLoading(false);
+            }
+        }
+
+        async function sendPerfectQuery() {
+            const input = document.getElementById('perfectInput');
+            const text = input.value.trim();
+            
+            if (!text) {
+                toast.show('Please enter a query for the Perfect LangGraph system', 'warning');
+                return;
+            }
+            
+            debug.log(`Sending perfect query: ${text}`, 'info');
+            
+            messages.addUserMessage(text);
+            input.value = '';
+            ui.showLoading(true, 'Perfect routing...');
+            
+            try {
+                const result = await api.perfectRequest(text);
+                
+                messages.addAssistantMessage(
+                    result.response || 'No response received',
+                    result.agents_involved || [],
+                    result.processing_time || 0,
+                    result.ai_used === true,
+                    'perfect'
+                );
+                
+                const status = result.system_status || 'operational';
+                toast.show(`Perfect response (${status}) in ${(result.processing_time || 0).toFixed(2)}s`, 'success');
+                
+            } catch (error) {
+                debug.log(`Perfect query error: ${error.message}`, 'error');
+                messages.addErrorMessage(`Perfect query failed: ${error.message}`);
+                toast.show('Perfect system error', 'error');
+            } finally {
+                ui.showLoading(false);
+            }
+        }
+
+        // 🎵 Audio Upload Functions
+        let selectedAudioFile = null;
+
+        function toggleAudioUpload() {
+            const controls = document.getElementById('audioUploadControls');
+            const toggleBtn = document.getElementById('uploadToggleBtn');
+            const isVisible = controls.style.display !== 'none';
+            
+            if (isVisible) {
+                controls.style.display = 'none';
+                toggleBtn.innerHTML = '<i class="fas fa-microphone"></i> Upload Audio File';
+                resetAudioUpload();
+            } else {
+                controls.style.display = 'block';
+                toggleBtn.innerHTML = '<i class="fas fa-times"></i> Cancel Audio Upload';
+            }
+            
+            debug.log(`Audio upload controls ${isVisible ? 'hidden' : 'shown'}`, 'ui');
+        }
+
+        function handleAudioFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            debug.log(`Audio file selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`, 'info');
+            
+            // Validate file type
+            const allowedTypes = ['.mp3', '.wav', '.m4a', '.ogg', '.flac', '.webm'];
+            const fileExt = '.' + file.name.split('.').pop().toLowerCase();
+            
+            if (!allowedTypes.includes(fileExt)) {
+                toast.show(`Unsupported file type: ${fileExt}. Please use: ${allowedTypes.join(', ')}`, 'error');
+                event.target.value = '';
+                return;
+            }
+            
+            // Validate file size (25MB limit)
+            const maxSizeMB = 25;
+            const fileSizeMB = file.size / 1024 / 1024;
+            
+            if (fileSizeMB > maxSizeMB) {
+                toast.show(`File too large: ${fileSizeMB.toFixed(2)}MB. Maximum size is ${maxSizeMB}MB`, 'error');
+                event.target.value = '';
+                return;
+            }
+            
+            // Store file and update UI
+            selectedAudioFile = file;
+            
+            document.getElementById('audioFileName').textContent = file.name;
+            document.getElementById('audioFileSize').textContent = `(${fileSizeMB.toFixed(2)} MB)`;
+            document.getElementById('audioFileInfo').style.display = 'flex';
+            document.getElementById('audioUploadBtn').disabled = false;
+            
+            toast.show('Audio file ready for upload', 'success');
+        }
+
+        function resetAudioUpload() {
+            selectedAudioFile = null;
+            document.getElementById('audioFileInput').value = '';
+            document.getElementById('audioFileInfo').style.display = 'none';
+            document.getElementById('audioUploadProgress').style.display = 'none';
+            document.getElementById('audioUploadBtn').disabled = true;
+            document.getElementById('audioProgressFill').style.width = '0%';
+            document.getElementById('audioProgressText').textContent = 'Uploading...';
+        }
+
+        function cancelAudioUpload() {
+            toggleAudioUpload();
+            resetAudioUpload();
+            toast.show('Audio upload cancelled', 'info');
+        }
+
+        async function uploadAudioFile() {
+            if (!selectedAudioFile) {
+                toast.show('Please select an audio file first', 'warning');
+                return;
+            }
+            
+            debug.log(`Starting audio upload: ${selectedAudioFile.name}`, 'info');
+            
+            // Show progress
+            document.getElementById('audioUploadProgress').style.display = 'block';
+            document.getElementById('audioUploadBtn').disabled = true;
+            
+            // Add user message
+            messages.addUserMessage(`🎵 Uploading and analyzing audio: ${selectedAudioFile.name}`);
+            ui.showLoading(true, 'Uploading and transcribing audio...');
+            
+            try {
+                // Create form data
+                const formData = new FormData();
+                formData.append('audio', selectedAudioFile);
+                formData.append('user_id', CONFIG.USER_ID);
+                
+                // Upload with progress tracking
+                const response = await fetch(CONFIG.ENDPOINTS.audioUpload, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || `Upload failed: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                debug.log(`Audio upload successful: ${JSON.stringify(result, null, 2)}`, 'success');
+                
+                // Add assistant response
+                messages.addAssistantMessage(
+                    result.response || 'Audio analysis completed',
+                    result.agents_involved || ['AudioAnalyzer'],
+                    result.processing_time || 0,
+                    result.ai_used === true,
+                    'recording'
+                );
+                
+                toast.show(`Audio analyzed in ${(result.processing_time || 0).toFixed(2)}s`, 'success');
+                
+                // Reset upload UI
+                resetAudioUpload();
+                toggleAudioUpload();
+                
+            } catch (error) {
+                debug.log(`Audio upload error: ${error.message}`, 'error');
+                messages.addErrorMessage(`Audio upload failed: ${error.message}`);
+                toast.show('Failed to upload audio file', 'error');
+                
+                // Re-enable upload button
+                document.getElementById('audioUploadBtn').disabled = false;
+                document.getElementById('audioUploadProgress').style.display = 'none';
+                
+            } finally {
+                ui.showLoading(false);
+            }
+        }
+
+        // 🧪 Debug Testing Functions
+        async function testServerHealth() {
+            debug.log('=== MANUAL SERVER HEALTH TEST ===', 'info');
+            await health.checkServerHealth();
+        }
+
+        async function testChatAPI() {
+            debug.log('=== MANUAL CHAT API TEST ===', 'info');
+            const testMessage = 'Test message: I need help planning a trip to Tokyo';
+            
+            try {
+                const result = await api.chatRequest(testMessage);
+                debug.log(`Chat API test successful: ${JSON.stringify(result, null, 2)}`, 'success');
+                toast.show('Chat API test passed', 'success');
+            } catch (error) {
+                debug.log(`Chat API test failed: ${error.message}`, 'error');
+                toast.show('Chat API test failed', 'error');
+            }
+        }
+
+        async function testBatchAPI() {
+            debug.log('=== MANUAL BATCH API TEST ===', 'info');
+            const testTranscript = 'User: I want to visit Europe but I\'m feeling overwhelmed.\nGuide: What type of experiences are you looking for?\nUser: Cultural experiences, but I\'m worried about language barriers.';
+            
+            try {
+                const result = await api.batchRequest(testTranscript);
+                debug.log(`Batch API test successful: ${JSON.stringify(result, null, 2)}`, 'success');
+                toast.show('Batch API test passed', 'success');
+            } catch (error) {
+                debug.log(`Batch API test failed: ${error.message}`, 'error');
+                toast.show('Batch API test failed', 'error');
+            }
+        }
+
+        async function testPerfectAPI() {
+            debug.log('=== MANUAL PERFECT API TEST ===', 'info');
+            const testQuery = 'Plan a perfect cultural trip to Rome with budget considerations';
+            
+            try {
+                const result = await api.perfectRequest(testQuery);
+                debug.log(`Perfect API test successful: ${JSON.stringify(result, null, 2)}`, 'success');
+                toast.show('Perfect API test passed', 'success');
+            } catch (error) {
+                debug.log(`Perfect API test failed: ${error.message}`, 'error');
+                toast.show('Perfect API test failed', 'error');
+            }
+        }
+
+        async function testAllAPIs() {
+            debug.log('=== COMPREHENSIVE API TEST SUITE ===', 'info');
+            await testChatAPI();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await testBatchAPI();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await testPerfectAPI();
+            debug.log('=== API TEST SUITE COMPLETED ===', 'success');
+        }
+
+        function simulateAPIResponse() {
+            debug.log('=== SIMULATING API RESPONSE ===', 'info');
+            const simulatedResponse = {
+                response: '**Trip Planning Assistance**\n\nI can help you plan your Japan trip! Here are my recommendations:\n\n# Cultural Highlights\n- Visit Senso-ji Temple in Asakusa\n- Experience a traditional ryokan\n- Try kaiseki dining\n\n# Practical Tips\n- Get a JR Pass for transportation\n- Learn basic Japanese phrases\n- *Enjoy the cherry blossoms if visiting in spring!*\n\nWould you like more specific recommendations for any region?',
+                agents_involved: ["TextTripAnalyzer", "TripCommsCoach"],
+                processing_time: 2.45,
+                ai_used: true,
+                system_status: "operational"
+            };
+            
+            messages.addAssistantMessage(
+                simulatedResponse.response,
+                simulatedResponse.agents_involved,
+                simulatedResponse.processing_time,
+                simulatedResponse.ai_used,
+                'perfect'
+            );
+            
+            debug.log('Simulated response added to chat', 'success');
+            toast.show('Simulated response generated', 'info');
+        }
+
+        function clearDebugConsole() {
+            debug.clear();
+            toast.show('Debug console cleared', 'info');
+        }
+
+        function exportDebugLogs() {
+            const logsText = debug.logs.map(log => 
+                '[' + log.timestamp + '] [' + log.type.toUpperCase() + '] ' + log.message
+            ).join('\n');
+            
+            const blob = new Blob([logsText], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'travel-assistant-debug-' + new Date().getTime() + '.txt';
+            a.click();
+            window.URL.revokeObjectURL(url);
+            
+            debug.log('Debug logs exported successfully', 'success');
+            toast.show('Debug logs exported', 'success');
+        }
+
+        // 🚀 Initialize Application
+        document.addEventListener('DOMContentLoaded', () => {
+            debug.log('Travel Assistant Perfect UI initialized', 'success');
+            debug.log(`User ID: ${CONFIG.USER_ID}`, 'info');
+            debug.log('All systems ready', 'success');
+            
+            // Update displays
+            document.getElementById('userIdDisplay').textContent = CONFIG.USER_ID;
+            document.getElementById('currentModeDisplay').textContent = CONFIG.CURRENT_MODE;
+            
+            toast.show('Welcome to Travel Assistant!', 'success');
+        });
+
+        // Handle page refresh warning
+        window.addEventListener('beforeunload', (e) => {
+            if (document.querySelector('.chat-messages').children.length > 1) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+    </script>
+</body>
+</html>

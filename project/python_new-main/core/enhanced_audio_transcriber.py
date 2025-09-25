@@ -83,23 +83,49 @@ class EnhancedAudioTranscriber:
         
         logger.info("✅ Enhanced Audio Transcriber initialized")
     
+    def _check_ffmpeg_availability(self) -> bool:
+        """Check if ffmpeg is available in the system"""
+        try:
+            import subprocess
+            result = subprocess.run(["ffmpeg", "-version"], 
+                                  capture_output=True, 
+                                  timeout=5,
+                                  text=True)
+            return result.returncode == 0
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError, OSError):
+            return False
+    
     def _check_available_engines(self):
         """Check which transcription engines are available"""
         self.available_engines = []
+        ffmpeg_available = self._check_ffmpeg_availability()
+        
+        if not ffmpeg_available:
+            logger.error("❌ ffmpeg not found! Whisper-based transcription will not work.")
+            logger.error("   To fix this, install ffmpeg:")
+            logger.error("   - Windows: Run PowerShell as Admin and execute 'choco install ffmpeg'")
+            logger.error("   - Or download from https://ffmpeg.org/download.html")
+            logger.error("   - Or use 'winget install ffmpeg' (Windows 10/11)")
         
         # Check faster-whisper
         try:
             from faster_whisper import WhisperModel
-            self.available_engines.append("faster_whisper")
-            logger.info("✅ faster-whisper available")
+            if ffmpeg_available:
+                self.available_engines.append("faster_whisper")
+                logger.info("✅ faster-whisper available")
+            else:
+                logger.warning("⚠️ faster-whisper available but ffmpeg missing")
         except ImportError:
             logger.warning("⚠️ faster-whisper not available")
         
         # Check OpenAI Whisper
         try:
             import whisper
-            self.available_engines.append("whisper")
-            logger.info("✅ OpenAI Whisper available")
+            if ffmpeg_available:
+                self.available_engines.append("whisper")
+                logger.info("✅ OpenAI Whisper available")
+            else:
+                logger.warning("⚠️ OpenAI Whisper available but ffmpeg missing")
         except ImportError:
             logger.warning("⚠️ OpenAI Whisper not available")
         
@@ -119,6 +145,30 @@ class EnhancedAudioTranscriber:
             logger.error("❌ No transcription engines available")
         else:
             logger.info(f"📊 Available engines: {', '.join(self.available_engines)}")
+    
+    def _validate_file_access(self, file_path: Path) -> Dict[str, Any]:
+        """Validate file access and return detailed information"""
+        validation_info = {
+            "exists": file_path.exists(),
+            "is_file": file_path.is_file() if file_path.exists() else False,
+            "readable": False,
+            "size": 0,
+            "absolute_path": str(file_path.resolve()),
+            "parent_exists": file_path.parent.exists() if file_path.exists() else False
+        }
+        
+        try:
+            if validation_info["exists"]:
+                validation_info["size"] = file_path.stat().st_size
+                # Test if file is readable
+                with open(file_path, 'rb') as f:
+                    f.read(1)  # Try to read first byte
+                validation_info["readable"] = True
+        except Exception as e:
+            logger.warning(f"File access validation error: {e}")
+            validation_info["error"] = str(e)
+        
+        return validation_info
     
     def validate_audio_file(self, file_path: Union[str, Path], max_size_mb: int = None) -> Dict[str, Any]:
         """Validate audio file format and size"""
@@ -296,16 +346,41 @@ class EnhancedAudioTranscriber:
         
         progress.update(progress=50, message="Processing audio...")
         
+        # Verify file exists and is accessible before proceeding
+        file_access_info = self._validate_file_access(file_path)
+        logger.info(f"File access validation: {file_access_info}")
+        
+        if not file_access_info["exists"]:
+            raise FileNotFoundError(f"Audio file not found: {file_path}")
+        
+        if not file_access_info["is_file"]:
+            raise FileNotFoundError(f"Path is not a file: {file_path}")
+            
+        if not file_access_info["readable"]:
+            error_msg = file_access_info.get("error", "Unknown access error")
+            raise PermissionError(f"Cannot read audio file: {file_path} - {error_msg}")
+        
         # Detect language if auto
         detect_language = language if language != "auto" else None
         
-        # Transcribe
-        segments, info = self.faster_whisper_model.transcribe(
-            str(file_path),
-            language=detect_language,
-            beam_size=5,
-            temperature=0.0
-        )
+        # Convert path to absolute path string
+        absolute_path = str(file_path.resolve())
+        logger.info(f"Transcribing file with faster-whisper: {absolute_path}")
+        logger.info(f"Original file_path: {file_path}")
+        logger.info(f"File exists before transcription: {Path(absolute_path).exists()}")
+        
+        # Transcribe with error handling
+        try:
+            segments, info = self.faster_whisper_model.transcribe(
+                absolute_path,
+                language=detect_language,
+                beam_size=5,
+                temperature=0.0
+            )
+        except Exception as transcribe_error:
+            logger.error(f"faster-whisper transcribe error: {transcribe_error}")
+            logger.error(f"File exists during error: {Path(absolute_path).exists()}")
+            raise
         
         progress.update(progress=80, message="Extracting text...")
         
@@ -342,6 +417,20 @@ class EnhancedAudioTranscriber:
         
         progress.update(progress=30, message="Loading OpenAI Whisper model...")
         
+        # Verify file exists and is accessible before proceeding
+        file_access_info = self._validate_file_access(file_path)
+        logger.info(f"File access validation: {file_access_info}")
+        
+        if not file_access_info["exists"]:
+            raise FileNotFoundError(f"Audio file not found: {file_path}")
+        
+        if not file_access_info["is_file"]:
+            raise FileNotFoundError(f"Path is not a file: {file_path}")
+            
+        if not file_access_info["readable"]:
+            error_msg = file_access_info.get("error", "Unknown access error")
+            raise PermissionError(f"Cannot read audio file: {file_path} - {error_msg}")
+        
         if not self.whisper_model:
             # Use base model for balance of speed and accuracy
             model_size = "base.en" if language == "en" else "base"
@@ -349,13 +438,75 @@ class EnhancedAudioTranscriber:
         
         progress.update(progress=50, message="Processing audio...")
         
-        # Transcribe
-        result = self.whisper_model.transcribe(
-            str(file_path),
-            language=language if language != "auto" else None,
-            temperature=0.0,
-            no_speech_threshold=0.6
-        )
+        # Convert path to absolute path string to ensure Whisper can find it
+        # Use forward slashes for better cross-platform compatibility
+        absolute_path = str(file_path.resolve()).replace('\\', '/')
+        logger.info(f"Transcribing file: {absolute_path}")
+        logger.info(f"Original file_path: {file_path}")
+        logger.info(f"Resolved path: {file_path.resolve()}")
+        logger.info(f"File exists before transcription: {Path(absolute_path).exists()}")
+        logger.info(f"File size before transcription: {Path(absolute_path).stat().st_size if Path(absolute_path).exists() else 'N/A'} bytes")
+        
+        # Verify file still exists just before transcription
+        if not Path(absolute_path).exists():
+            # Try with original path format as fallback
+            original_absolute = str(file_path.resolve())
+            if not Path(original_absolute).exists():
+                raise FileNotFoundError(f"Audio file disappeared before transcription. Tried paths: {absolute_path}, {original_absolute}")
+            else:
+                absolute_path = original_absolute
+                logger.info(f"Using original path format: {absolute_path}")
+        
+        # Transcribe with additional error handling
+        # Try both path formats for maximum compatibility
+        try:
+            result = self.whisper_model.transcribe(
+                absolute_path,
+                language=language if language != "auto" else None,
+                temperature=0.0,
+                no_speech_threshold=0.6
+            )
+        except Exception as transcribe_error:
+            logger.error(f"Whisper transcribe error: {transcribe_error}")
+            logger.error(f"File exists during error: {Path(absolute_path).exists()}")
+            
+            # Check if this is likely an ffmpeg issue
+            error_str = str(transcribe_error).lower()
+            if "system cannot find the file" in error_str or "winerror 2" in error_str:
+                # This is likely a missing ffmpeg issue
+                if not self._check_ffmpeg_availability():
+                    raise Exception(
+                        "Audio transcription failed: ffmpeg is not installed or not in system PATH. "
+                        "Please install ffmpeg: 1) Run PowerShell as Admin, 2) Execute 'choco install ffmpeg' or 'winget install ffmpeg', "
+                        "3) Restart the application. Alternative: Download from https://ffmpeg.org/download.html"
+                    )
+            
+            # Try with original Windows path format as fallback
+            original_absolute = str(file_path.resolve())
+            if absolute_path != original_absolute:
+                logger.info(f"Retrying transcription with original path format: {original_absolute}")
+                try:
+                    result = self.whisper_model.transcribe(
+                        original_absolute,
+                        language=language if language != "auto" else None,
+                        temperature=0.0,
+                        no_speech_threshold=0.6
+                    )
+                    logger.info("Transcription succeeded with original path format")
+                except Exception as retry_error:
+                    logger.error(f"Retry with original path also failed: {retry_error}")
+                    # Check for ffmpeg issue again
+                    retry_error_str = str(retry_error).lower()
+                    if "system cannot find the file" in retry_error_str or "winerror 2" in retry_error_str:
+                        if not self._check_ffmpeg_availability():
+                            raise Exception(
+                                "Audio transcription failed: ffmpeg is not installed or not in system PATH. "
+                                "Please install ffmpeg: 1) Run PowerShell as Admin, 2) Execute 'choco install ffmpeg' or 'winget install ffmpeg', "
+                                "3) Restart the application. Alternative: Download from https://ffmpeg.org/download.html"
+                            )
+                    raise transcribe_error  # Raise the original error
+            else:
+                raise
         
         progress.update(progress=80, message="Extracting segments...")
         
@@ -395,8 +546,16 @@ class EnhancedAudioTranscriber:
         
         progress.update(progress=50, message="Uploading audio to OpenAI...")
         
+        # Verify file exists before proceeding
+        if not file_path.exists():
+            raise FileNotFoundError(f"Audio file not found: {file_path}")
+        
+        # Convert to absolute path
+        absolute_path = file_path.resolve()
+        logger.info(f"Transcribing file with OpenAI API: {absolute_path}")
+        
         # Open audio file
-        with open(file_path, "rb") as audio_file:
+        with open(absolute_path, "rb") as audio_file:
             transcript = self.openai_client.audio.transcriptions.create(
                 model="whisper-1",
                 file=audio_file,

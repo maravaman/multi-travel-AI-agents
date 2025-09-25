@@ -500,11 +500,27 @@ class MemoryManager:
             logger.error(f"Error storing interaction: {e}")
     
     def store_query(self, user_id: int, query: str, response: str, agent_name: str = 'general'):
-        """Store query for search functionality - compatibility method"""
-        # This method provides compatibility for the test suite
-        # It stores the query as an interaction and as a vector embedding
+        """Store query in user_queries table for search functionality"""
         try:
-            # Store as interaction
+            if not self.mysql_available or not self.mysql_conn:
+                logger.debug(f"MySQL not available, skipping query storage for user {user_id}")
+                return
+                
+            cursor = self.mysql_conn.cursor()
+            
+            # Store in user_queries table according to schema
+            cursor.execute(
+                """
+                INSERT INTO user_queries (user_id, query_text, agent_used, response_length, timestamp) 
+                VALUES (%s, %s, %s, %s, NOW())
+                """,
+                (user_id, query, agent_name, len(response) if response else 0)
+            )
+            
+            cursor.close()
+            self.mysql_conn.commit()
+            
+            # Store as interaction for backward compatibility
             self.store_interaction(user_id, agent_name, query, response)
             
             # Store as vector embedding for similarity search
@@ -513,6 +529,60 @@ class MemoryManager:
             logger.info(f"Stored query for user {user_id}: {query[:50]}...")
         except Exception as e:
             logger.error(f"Error storing query: {e}")
+    
+    def store_session_in_mysql(self, session_id: str, user_id: int, title: str = None, mode: str = "chat", session_summary: str = None):
+        """Store session data in MySQL sessions table"""
+        try:
+            if not self.mysql_available or not self.mysql_conn:
+                logger.debug(f"MySQL not available, skipping session storage")
+                return
+                
+            cursor = self.mysql_conn.cursor()
+            
+            # Store or update session in MySQL
+            cursor.execute(
+                """
+                INSERT INTO sessions (session_id, user_id, title, mode, started_at, last_at, turn_count, session_summary) 
+                VALUES (%s, %s, %s, %s, NOW(), NOW(), %s, %s)
+                ON DUPLICATE KEY UPDATE 
+                last_at = NOW(), 
+                turn_count = turn_count + 1,
+                session_summary = COALESCE(VALUES(session_summary), session_summary)
+                """,
+                (session_id, user_id, title or "Travel Session", mode, 1, session_summary)
+            )
+            
+            cursor.close()
+            self.mysql_conn.commit()
+            
+            logger.debug(f"Stored session {session_id} in MySQL")
+        except Exception as e:
+            logger.error(f"Error storing session in MySQL: {e}")
+    
+    def store_turn_in_mysql(self, turn_id: str, session_id: str, user_id: int, role: str, agent_name: str, content: str, metadata: dict = None):
+        """Store individual turn in MySQL turns table"""
+        try:
+            if not self.mysql_available or not self.mysql_conn:
+                logger.debug(f"MySQL not available, skipping turn storage")
+                return
+                
+            cursor = self.mysql_conn.cursor()
+            
+            # Store turn in MySQL
+            cursor.execute(
+                """
+                INSERT INTO turns (turn_id, session_id, user_id, role, agent_name, content, metadata) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                (turn_id, session_id, user_id, role, agent_name, content, json.dumps(metadata or {}))
+            )
+            
+            cursor.close()
+            self.mysql_conn.commit()
+            
+            logger.debug(f"Stored turn {turn_id} in MySQL")
+        except Exception as e:
+            logger.error(f"Error storing turn in MySQL: {e}")
     
     # ----------------------
     # VECTOR SIMILARITY SEARCH METHODS

@@ -74,383 +74,280 @@ class ProductionOllamaClient:
     
     def generate_response(self, prompt: str, system_prompt: str = None, agent_name: str = None) -> str:
         """
-        Generate high-quality response with quick Ollama attempt and rich fallback
-        Prioritizes speed and reliability over pure Ollama dependency
+        Generate PURE Ollama AI responses only - no hardcoded fallbacks
+        Prioritizes getting real AI responses with multiple retry strategies
         """
         if not prompt or not prompt.strip():
             return "I'm ready to help with your travel planning. Please share your specific question!"
         
-        # Quick Ollama attempt with very short timeout
-        try:
-            import threading
-            import queue
-            
-            result_queue = queue.Queue()
-            
-            def quick_ollama_request():
-                try:
-                    # Use simplified request for speed
-                    result = self._make_quick_ollama_request(prompt, system_prompt)
-                    result_queue.put(("success", result))
-                except Exception as e:
-                    result_queue.put(("error", str(e)))
-            
-            # Start quick Ollama attempt
-            thread = threading.Thread(target=quick_ollama_request, daemon=True)
-            thread.start()
-            
-            # Wait only 4 seconds for Ollama for chat mode compliance
+        # Enhance prompt for better context and relevance
+        enhanced_prompt = self._create_perfect_prompt(prompt, agent_name)
+        enhanced_system = self._create_perfect_system_prompt(agent_name, prompt)
+        
+        # Multiple Ollama attempts with different strategies - optimized for speed
+        strategies = [
+            {"temperature": 0.7, "timeout": 8, "tokens": 350},
+            {"temperature": 0.8, "timeout": 12, "tokens": 400}, 
+            {"temperature": 0.6, "timeout": 15, "tokens": 450},
+            {"temperature": 0.9, "timeout": 10, "tokens": 300}
+        ]
+        
+        for i, strategy in enumerate(strategies):
             try:
-                status, result = result_queue.get(timeout=4)
-                if status == "success" and result and len(result.strip()) > 30:
-                    logger.info(f"✅ Generated real Ollama response ({len(result)} chars) for {agent_name}")
-                    return result.strip()
-                else:
-                    logger.info(f"⚡ Ollama response insufficient, using rich fallback for {agent_name}")
-            except queue.Empty:
-                logger.info(f"⚡ Ollama timeout (10s), using rich fallback for {agent_name}")
+                logger.info(f"🤖 Ollama attempt {i+1}/4 with strategy: temp={strategy['temperature']}, timeout={strategy['timeout']}s")
                 
-        except Exception as e:
-            logger.debug(f"Quick Ollama attempt failed for {agent_name}: {e}")
+                result = self._attempt_ollama_with_strategy(enhanced_prompt, enhanced_system, strategy)
+                
+                if result and len(result.strip()) > 30:
+                    if self._is_response_relevant(prompt, result):
+                        logger.info(f"🎯 SUCCESS: Pure Ollama response generated ({len(result)} chars) on attempt {i+1}")
+                        return result.strip()
+                    else:
+                        logger.info(f"🔄 Response not relevant enough, trying next strategy...")
+                        continue
+                
+            except Exception as e:
+                logger.warning(f"⚠️ Ollama strategy {i+1} failed: {e}")
+                continue
         
-        # Use rich fallback (this is actually excellent quality!)
-        logger.info(f"🎯 Using rich fallback response for {agent_name}")
-        return self._get_minimal_fallback(prompt, agent_name)
-    
-    def _enhance_prompt_for_agent(self, prompt: str, system_prompt: str = None, agent_name: str = None) -> str:
-        """Enhance prompt with agent-specific context for better AI responses"""
-        if not agent_name:
-            return prompt
-        
-        # Agent-specific prompt enhancements
-        enhancements = {
-            "TextTripAnalyzer": f"As a travel planning expert, analyze this query and provide detailed, actionable travel advice: {prompt}",
-            "TripMoodDetector": f"As an emotional intelligence expert for travelers, analyze the mood and emotions in this query, then provide empathetic support: {prompt}",
-            "TripCommsCoach": f"As a travel communication coach, provide specific phrases and communication strategies for this travel situation: {prompt}",
-            "TripBehaviorGuide": f"As a travel behavior consultant, provide clear next steps and actionable guidance for this travel decision: {prompt}",
-            "TripCalmPractice": f"As a travel wellness expert, provide calming techniques and stress relief methods for this travel concern: {prompt}",
-            "TripSummarySynth": f"As a comprehensive travel advisor, synthesize all aspects of this travel query and provide integrated recommendations: {prompt}"
-        }
-        
-        enhanced = enhancements.get(agent_name, prompt)
-        
-        # Add context about being helpful and specific
-        enhanced += "\n\nPlease provide a specific, actionable response that directly helps with this travel planning need."
-        
-        return enhanced
-    
-    def _make_quick_ollama_request(self, prompt: str, system_prompt: str = None) -> str:
-        """Make a quick Ollama request with minimal configuration for speed"""
-        payload = {
-            "model": self.model,
-            "prompt": prompt,
-            "stream": False,
-            "options": {
-                "temperature": 0.7,
-                "num_predict": 150,  # Extra short responses for speed
-                "num_ctx": 512,      # Very minimal context
-            }
-        }
-        
-        if system_prompt:
-            payload["system"] = system_prompt
-        
-        # Make request with shorter timeout for chat mode
-        response = self.session.post(
-            f"{self.base_url}/api/generate",
-            json=payload,
-            timeout=4  # Very short timeout for chat mode
-        )
-        
-        response.raise_for_status()
-        result = response.json()
-        
-        return result.get('response', '').strip()
-    
-    def _make_ollama_request(self, prompt: str, system_prompt: str = None) -> str:
-        """Make the actual request to Ollama"""
-        payload = {
-            "model": self.model,
-            "prompt": prompt,
-            "stream": False,
-            "options": {
-                "temperature": 0.7,
-                "top_p": 0.9,
-                "top_k": 40,
-                "repeat_penalty": 1.1,
-                "num_predict": 300,  # Shorter responses for speed
-                "num_ctx": 2048,     # Smaller context for faster processing
-            }
-        }
-        
-        if system_prompt:
-            payload["system"] = system_prompt
-        
-        # Make request with timeout
-        response = self.session.post(
-            f"{self.base_url}/api/generate",
-            json=payload,
-            timeout=self.timeout
-        )
-        
-        response.raise_for_status()
-        result = response.json()
-        
-        return result.get('response', '').strip()
-    
-    def _get_minimal_fallback(self, prompt: str, agent_name: str = None) -> str:
-        """Rich fallback responses using enhanced mock client when Ollama is unavailable"""
+        # Final attempt with basic configuration if all strategies fail
         try:
-            from core.enhanced_mock_ollama_client import enhanced_mock_client
-            
-            # Use the enhanced mock client to generate rich, contextual responses
-            system_prompt = self._get_agent_system_prompt(agent_name)
-            response = enhanced_mock_client.generate_response(
-                prompt=prompt,
-                system_prompt=system_prompt
-            )
-            
-            if response and len(response.strip()) > 50:
-                logger.info(f"✅ Generated rich fallback response for {agent_name} ({len(response)} chars)")
-                return response
-                
+            logger.info("🔄 Final Ollama attempt with basic configuration...")
+            result = self._make_basic_ollama_request(prompt, system_prompt or enhanced_system)
+            if result and len(result.strip()) > 10:
+                logger.info(f"🎯 Final attempt SUCCESS: Ollama response ({len(result)} chars)")
+                return result.strip()
         except Exception as e:
-            logger.warning(f"Enhanced fallback failed: {e}")
+            logger.error(f"❌ All Ollama attempts failed: {e}")
         
-        # Final fallback with agent-specific guidance
-        agent_fallbacks = {
-            "TextTripAnalyzer": self._generate_rich_travel_analysis(prompt),
-            "TripMoodDetector": self._generate_rich_mood_support(prompt),
-            "TripCommsCoach": self._generate_rich_communication_help(prompt),
-            "TripBehaviorGuide": self._generate_rich_behavioral_guidance(prompt),
-            "TripCalmPractice": self._generate_rich_calming_advice(prompt),
-            "TripSummarySynth": self._generate_rich_comprehensive_advice(prompt)
+        # Only return basic message if ALL Ollama attempts fail completely
+        return f"I understand you're asking about: '{prompt[:100]}{'...' if len(prompt) > 100 else ''}'. I'm currently experiencing technical difficulties connecting to the AI system, but I'm here to help with your travel planning needs."
+    
+    def _create_perfect_prompt(self, prompt: str, agent_name: str = None) -> str:
+        """Create enhanced prompt for perfect contextual responses"""
+        # Extract key travel elements from the query
+        query_analysis = self._analyze_travel_query(prompt)
+        
+        base_prompt = f"Travel Query: {prompt}\n\n"
+        
+        # Add context based on detected elements
+        if query_analysis['destination']:
+            base_prompt += f"Destination Context: {query_analysis['destination']}\n"
+        if query_analysis['travel_type']:
+            base_prompt += f"Travel Type: {query_analysis['travel_type']}\n"
+        if query_analysis['concern_type']:
+            base_prompt += f"Primary Concern: {query_analysis['concern_type']}\n"
+        
+        # Add agent-specific context
+        agent_contexts = {
+            "TextTripAnalyzer": "Provide detailed destination analysis, logistics, and practical travel planning advice.",
+            "TripMoodDetector": "Address emotional concerns, provide reassurance, and build travel confidence.",
+            "TripCommsCoach": "Give specific communication tips, phrases, and cultural interaction advice.",
+            "TripBehaviorGuide": "Provide clear next steps, decision frameworks, and actionable guidance.",
+            "TripCalmPractice": "Offer anxiety relief techniques, stress management, and calming strategies.",
+            "TripSummarySynth": "Provide comprehensive overview and synthesized recommendations."
         }
         
-        return agent_fallbacks.get(agent_name, self._generate_rich_general_response(prompt))
+        if agent_name in agent_contexts:
+            base_prompt += f"\nResponse Focus: {agent_contexts[agent_name]}\n"
+        
+        base_prompt += f"\nProvide a specific, helpful response directly addressing this travel query with actionable advice."
+        
+        return base_prompt
     
-    def _get_agent_system_prompt(self, agent_name: str = None) -> str:
-        """Get system prompt for specific agent types"""
-        if not agent_name:
-            return "You are a helpful travel assistant. Provide practical, actionable travel advice."
-            
-        system_prompts = {
-            "TextTripAnalyzer": "You are a travel planning expert. Analyze travel queries and provide detailed, actionable travel advice with specific recommendations.",
-            "TripMoodDetector": "You are an emotional intelligence expert for travelers. Analyze mood and emotions, then provide empathetic support and confidence-building advice.",
-            "TripCommsCoach": "You are a travel communication coach. Provide specific phrases, cultural tips, and communication strategies for travel situations.",
-            "TripBehaviorGuide": "You are a travel behavior consultant. Provide clear next steps and actionable guidance for travel decisions and planning.",
-            "TripCalmPractice": "You are a travel wellness expert. Provide calming techniques, stress relief methods, and anxiety management for travel concerns.",
-            "TripSummarySynth": "You are a comprehensive travel advisor. Synthesize all aspects of travel queries and provide integrated, holistic recommendations."
+    def _create_perfect_system_prompt(self, agent_name: str = None, user_query: str = "") -> str:
+        """Create optimized system prompt for perfect responses"""
+        base_system = "You are an expert travel advisor with deep knowledge of destinations worldwide. "
+        
+        agent_specializations = {
+            "TextTripAnalyzer": "You specialize in destination analysis, travel planning, logistics, and creating detailed itineraries. Focus on practical, actionable travel advice.",
+            "TripMoodDetector": "You specialize in travel psychology, emotional support, and building confidence for nervous or excited travelers. Be empathetic and encouraging.",
+            "TripCommsCoach": "You specialize in travel communication, language barriers, cultural etiquette, and interpersonal interactions while traveling.",
+            "TripBehaviorGuide": "You specialize in travel decision-making, behavioral guidance, and providing clear next steps for travel planning and execution.",
+            "TripCalmPractice": "You specialize in travel anxiety management, stress relief, mindfulness practices, and helping travelers feel calm and prepared.",
+            "TripSummarySynth": "You specialize in synthesizing travel information, creating comprehensive summaries, and providing holistic travel guidance."
         }
         
-        return system_prompts.get(agent_name, "You are a helpful travel assistant. Provide practical, actionable travel advice.")
+        if agent_name in agent_specializations:
+            base_system += agent_specializations[agent_name]
+        else:
+            base_system += "Provide comprehensive travel guidance covering all aspects of travel planning and execution."
+        
+        base_system += " Always provide specific, actionable advice that directly addresses the user's query. Be concise but thorough."
+        
+        return base_system
     
-    def _generate_rich_travel_analysis(self, prompt: str) -> str:
-        """Generate rich travel analysis fallback"""
-        return f"""🎯 **Travel Planning Analysis**
-
-Based on your inquiry about "{prompt[:100]}{'...' if len(prompt) > 100 else ''}", I'll provide comprehensive travel guidance:
-
-**🗺️ Planning Framework:**
-• **Destination Research**: Investigate culture, climate, and key attractions
-• **Budget Planning**: Allocate funds for transport, accommodation, activities, and contingencies
-• **Timeline Strategy**: Optimize timing for weather, costs, and local events
-• **Logistics Coordination**: Handle bookings, documentation, and transportation
-
-**🏨 Accommodation Strategy:**
-• Research neighborhoods that match your interests
-• Book early for better rates and availability
-• Consider location vs. cost trade-offs
-• Read recent reviews for accurate expectations
-
-**🎆 Experience Optimization:**
-• Balance must-see attractions with local discoveries
-• Allow flexibility for spontaneous adventures
-• Research local customs and etiquette
-• Plan for different weather scenarios
-
-I'm designed to provide detailed, personalized travel analysis. For the most comprehensive guidance, please ensure all system components are fully operational."""
     
-    def _generate_rich_mood_support(self, prompt: str) -> str:
-        """Generate rich mood support fallback"""
-        return f"""🤗 **Travel Emotional Support**
-
-I understand your feelings about "{prompt[:100]}{'...' if len(prompt) > 100 else ''}" and I'm here to provide supportive guidance:
-
-**💚 Emotional Validation:**
-• Travel anxiety and excitement are completely normal
-• Your concerns show thoughtful planning instincts
-• Many successful travelers have felt exactly what you're experiencing
-• These feelings often transform into amazing memories
-
-**💪 Confidence Building:**
-• **Preparation Reduces Anxiety**: Research builds confidence
-• **Start Small**: Begin with familiar comforts, expand gradually
-• **Support Network**: Connect with fellow travelers and locals
-• **Positive Visualization**: Imagine successful, enjoyable experiences
-
-**🌱 Growth Mindset:**
-• Challenges become stories of personal growth
-• Every traveler learns through experience
-• Flexibility and adaptation are travel superpowers
-• Your unique perspective will create meaningful experiences
-
-Remember: You're more capable than you realize, and travel rewards courage with incredible experiences."""
+    def _analyze_travel_query(self, prompt: str) -> dict:
+        """Analyze travel query to extract key elements for better context"""
+        prompt_lower = prompt.lower()
+        
+        # Detect destinations
+        destinations = []
+        common_destinations = {
+            'tokyo': 'Tokyo, Japan', 'japan': 'Japan', 'paris': 'Paris, France', 'france': 'France',
+            'italy': 'Italy', 'rome': 'Rome, Italy', 'london': 'London, UK', 'uk': 'United Kingdom',
+            'spain': 'Spain', 'madrid': 'Madrid, Spain', 'barcelona': 'Barcelona, Spain',
+            'greece': 'Greece', 'athens': 'Athens, Greece', 'thailand': 'Thailand', 'bangkok': 'Bangkok, Thailand',
+            'india': 'India', 'delhi': 'Delhi, India', 'mumbai': 'Mumbai, India', 'kerala': 'Kerala, India',
+            'germany': 'Germany', 'berlin': 'Berlin, Germany', 'amsterdam': 'Amsterdam, Netherlands',
+            'netherlands': 'Netherlands', 'europe': 'Europe', 'asia': 'Asia', 'america': 'America',
+            'usa': 'United States', 'new york': 'New York, USA', 'california': 'California, USA'
+        }
+        
+        for key, full_name in common_destinations.items():
+            if key in prompt_lower:
+                destinations.append(full_name)
+                break
+        
+        # Detect travel types
+        travel_types = []
+        if any(word in prompt_lower for word in ['business', 'work', 'conference', 'meeting']):
+            travel_types.append('business')
+        if any(word in prompt_lower for word in ['vacation', 'holiday', 'leisure', 'fun', 'relax']):
+            travel_types.append('leisure')
+        if any(word in prompt_lower for word in ['backpack', 'budget', 'cheap', 'affordable']):
+            travel_types.append('budget')
+        if any(word in prompt_lower for word in ['luxury', 'premium', 'high-end', 'expensive']):
+            travel_types.append('luxury')
+        if any(word in prompt_lower for word in ['family', 'kids', 'children', 'parents']):
+            travel_types.append('family')
+        if any(word in prompt_lower for word in ['solo', 'alone', 'myself', 'single']):
+            travel_types.append('solo')
+        if any(word in prompt_lower for word in ['romantic', 'honeymoon', 'couple', 'partner']):
+            travel_types.append('romantic')
+        
+        # Detect concern types
+        concerns = []
+        if any(word in prompt_lower for word in ['nervous', 'anxious', 'worried', 'scared', 'afraid']):
+            concerns.append('anxiety')
+        if any(word in prompt_lower for word in ['language', 'communicate', 'speak', 'talk']):
+            concerns.append('communication')
+        if any(word in prompt_lower for word in ['budget', 'money', 'cost', 'expensive', 'afford']):
+            concerns.append('budget')
+        if any(word in prompt_lower for word in ['safety', 'safe', 'dangerous', 'security']):
+            concerns.append('safety')
+        if any(word in prompt_lower for word in ['plan', 'planning', 'organize', 'schedule']):
+            concerns.append('planning')
+        if any(word in prompt_lower for word in ['choose', 'decide', 'decision', 'options']):
+            concerns.append('decision-making')
+        
+        return {
+            'destination': destinations[0] if destinations else None,
+            'travel_type': travel_types[0] if travel_types else None,
+            'concern_type': concerns[0] if concerns else None,
+            'all_destinations': destinations,
+            'all_travel_types': travel_types,
+            'all_concerns': concerns
+        }
     
-    def _generate_rich_communication_help(self, prompt: str) -> str:
-        """Generate rich communication help fallback"""
-        return f"""💬 **Travel Communication Coaching**
-
-For your communication need about "{prompt[:100]}{'...' if len(prompt) > 100 else ''}", here's practical guidance:
-
-**🌍 Essential Communication Strategies:**
-• **Universal Phrases**: "Hello", "Thank you", "Please", "Excuse me", "Where is..?"
-• **Digital Tools**: Translation apps, offline dictionaries, visual aids
-• **Non-Verbal**: Smiles, pointing, gestures work across cultures
-• **Hotel Cards**: Carry hotel business cards with local language address
-
-**🏨 Hotel & Accommodation:**
-• "Could you please help me with...?"
-• "I have a dietary restriction/allergy to..."
-• "What time is breakfast/checkout?"
-• "Can you recommend a good local restaurant?"
-
-**🍽️ Dining Communication:**
-• "What do you recommend?"
-• "Is this spicy/vegetarian/contains nuts?"
-• "The bill, please" (gesture writing)
-• "This is delicious!" (thumbs up)
-
-**🎨 Cultural Sensitivity:**
-• Learn basic greetings in local language
-• Understand tipping customs
-• Respect personal space norms
-• Observe local dining and social etiquette
-
-Effective travel communication builds bridges and creates meaningful connections with local people."""
+    def _is_response_relevant(self, query: str, response: str) -> bool:
+        """Check if response is relevant to the query"""
+        query_lower = query.lower()
+        response_lower = response.lower()
+        
+        # Check for basic relevance - response should mention key terms from query
+        query_words = set(query_lower.split())
+        response_words = set(response_lower.split())
+        
+        # Remove common words
+        common_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'this', 'that', 'these', 'those'}
+        
+        query_keywords = query_words - common_words
+        relevant_keywords = query_keywords.intersection(response_words)
+        
+        # Check relevance ratio
+        relevance_ratio = len(relevant_keywords) / max(len(query_keywords), 1)
+        
+        # Also check if response contains travel-related terms when query is about travel
+        travel_terms = {'travel', 'trip', 'visit', 'destination', 'vacation', 'journey', 'tourism', 'hotel', 'flight', 'plan'}
+        has_travel_context = bool(travel_terms.intersection(response_words))
+        
+        return relevance_ratio > 0.3 or (has_travel_context and len(response) > 100)
     
-    def _generate_rich_behavioral_guidance(self, prompt: str) -> str:
-        """Generate rich behavioral guidance fallback"""
-        return f"""🧓 **Travel Decision & Behavior Guidance**
-
-For your decision about "{prompt[:100]}{'...' if len(prompt) > 100 else ''}", here's strategic guidance:
-
-**🎢 Decision-Making Framework:**
-• **Define Your Priorities**: Safety, budget, experiences, or comfort?
-• **Research Thoroughly**: Reviews, recent information, local insights
-• **Consider Trade-offs**: Cost vs. convenience, adventure vs. security
-• **Trust Your Instincts**: Your gut feeling about places and situations
-
-**🏃‍♂️ Next Steps Strategy:**
-1. **Immediate Actions**: What can you book/research today?
-2. **Short-term Planning**: What needs attention this week?
-3. **Long-term Preparation**: What can wait but shouldn't be forgotten?
-4. **Backup Plans**: What are your alternatives if plans change?
-
-**🔄 Behavioral Best Practices:**
-• **Stay Flexible**: Travel plans often need adjustments
-• **Document Everything**: Keep copies of important information
-• **Local Integration**: Observe and adapt to local behaviors
-• **Safety First**: Trust your instincts about people and situations
-
-**🎁 Experience Optimization:**
-• Balance planning with spontaneity
-• Engage with locals respectfully
-• Try new things within your comfort zone
-• Create space for unexpected discoveries
-
-Good travel behavior combines preparation with openness to new experiences."""
+    def _attempt_ollama_with_strategy(self, prompt: str, system_prompt: str, strategy: dict) -> str:
+        """Attempt Ollama request with specific strategy parameters"""
+        import threading
+        import queue
+        
+        result_queue = queue.Queue()
+        
+        def ollama_request():
+            try:
+                payload = {
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": strategy["temperature"],
+                        "top_p": 0.9,
+                        "top_k": 40,
+                        "repeat_penalty": 1.1,
+                        "num_predict": strategy["tokens"],
+                        "num_ctx": 2048,  # Reduced context window for speed
+                        "stop": ["\n\n\n", "Human:", "Assistant:", "User:", "Query:"]
+                    }
+                }
+                
+                if system_prompt:
+                    payload["system"] = system_prompt
+                
+                response = self.session.post(
+                    f"{self.base_url}/api/generate",
+                    json=payload,
+                    timeout=strategy["timeout"]
+                )
+                
+                response.raise_for_status()
+                result = response.json()
+                result_queue.put(("success", result.get('response', '').strip()))
+                
+            except Exception as e:
+                result_queue.put(("error", str(e)))
+        
+        thread = threading.Thread(target=ollama_request, daemon=True)
+        thread.start()
+        
+        try:
+            status, result = result_queue.get(timeout=strategy["timeout"] + 2)
+            if status == "success":
+                return result
+            else:
+                logger.warning(f"Strategy request failed: {result}")
+                return None
+        except queue.Empty:
+            logger.warning(f"Strategy timeout after {strategy['timeout']}s")
+            return None
     
-    def _generate_rich_calming_advice(self, prompt: str) -> str:
-        """Generate rich calming advice fallback"""
-        return f"""🧘 **Travel Stress Relief & Calming Techniques**
-
-For your concern about "{prompt[:100]}{'...' if len(prompt) > 100 else ''}", here are calming strategies:
-
-**🌊 Immediate Stress Relief:**
-• **Deep Breathing**: 4-4-4-4 pattern (inhale-hold-exhale-hold)
-• **Grounding Technique**: 5 things you see, 4 you hear, 3 you touch
-• **Progressive Relaxation**: Tense and release muscle groups
-• **Positive Affirmations**: "I am prepared, I am capable, I will adapt"
-
-**🌱 Pre-Travel Anxiety Management:**
-• **Preparation Checklist**: Reduce uncertainty through organization
-• **Visualization**: Imagine successful, enjoyable travel experiences
-• **Research Comfort**: Knowledge reduces fear of the unknown
-• **Support Network**: Talk to experienced travelers or professionals
-
-**🏠 During-Travel Coping:**
-• **Routine Maintenance**: Keep some familiar habits
-• **Comfort Items**: Bring something that feels like home
-• **Regular Check-ins**: Contact loved ones for emotional support
-• **Mindful Exploration**: Focus on present moments and sensory experiences
-
-**💚 Self-Care Practices:**
-• Allow time for rest between activities
-• Stay hydrated and maintain nutrition
-• Practice gratitude for new experiences
-• Be patient with yourself during adjustments
-
-Remember: Travel stress is temporary, but the growth and memories last forever."""
+    def _make_basic_ollama_request(self, prompt: str, system_prompt: str = None) -> str:
+        """Make a basic Ollama request as final attempt"""
+        payload = {
+            "model": self.model,
+            "prompt": prompt,
+            "stream": False,
+            "options": {
+                "temperature": 0.8,
+                "num_predict": 400,
+                "num_ctx": 2048,
+            }
+        }
+        
+        if system_prompt:
+            payload["system"] = system_prompt
+        
+        response = self.session.post(
+            f"{self.base_url}/api/generate",
+            json=payload,
+            timeout=10
+        )
+        
+        response.raise_for_status()
+        result = response.json()
+        
+        return result.get('response', '').strip()
     
-    def _generate_rich_comprehensive_advice(self, prompt: str) -> str:
-        """Generate rich comprehensive advice fallback"""
-        return f"""🎆 **Comprehensive Travel Advisory**
-
-Integrated guidance for your query: "{prompt[:100]}{'...' if len(prompt) > 100 else ''}"
-
-**🇺️ Holistic Travel Planning:**
-• **Multi-Dimensional Analysis**: Considering logistics, emotions, experiences, and growth
-• **Integrated Recommendations**: Balancing practical needs with personal preferences
-• **Adaptive Strategies**: Plans that work across different scenarios
-• **Continuous Optimization**: Approaches that improve throughout your journey
-
-**🕰️ Timeline Integration:**
-• **Pre-Travel**: Research, planning, booking, preparation
-• **During Travel**: Navigation, adaptation, experience optimization
-• **Post-Travel**: Reflection, memory consolidation, future planning
-
-**🌍 Experience Synthesis:**
-• **Cultural Immersion**: Balance tourist activities with local experiences
-• **Personal Growth**: Embrace challenges as development opportunities
-• **Relationship Building**: Connect meaningfully with people and places
-• **Memory Creation**: Design experiences that become lasting positive memories
-
-**🛠️ Resource Optimization:**
-• Time: Efficient planning maximizes experience quality
-• Money: Strategic spending creates value and memories
-• Energy: Sustainable pacing prevents burnout
-• Attention: Mindful focus enhances every moment
-
-Comprehensive travel planning considers all aspects of your journey for maximum enjoyment and personal growth."""
     
-    def _generate_rich_general_response(self, prompt: str) -> str:
-        """Generate rich general response fallback"""
-        return f"""🌎 **Expert Travel Assistance**
-
-Regarding your travel question: "{prompt[:100]}{'...' if len(prompt) > 100 else ''}"
-
-**🎯 Personalized Support Available:**
-• **Travel Planning**: Destinations, itineraries, logistics coordination
-• **Emotional Support**: Anxiety management, confidence building
-• **Communication Coaching**: Language tips, cultural guidance
-• **Decision Support**: Next steps, behavioral recommendations
-• **Wellness Guidance**: Stress relief, calming techniques
-• **Comprehensive Advisory**: Integrated, holistic travel counsel
-
-**🔍 Analysis Approach:**
-• Understanding your specific needs and concerns
-• Providing actionable, practical recommendations
-• Considering emotional and logistical factors
-• Offering multiple perspectives and options
-
-**🌱 Growth-Oriented Guidance:**
-Travel is transformational. Every question you ask demonstrates wisdom in seeking guidance. Your thoughtful approach to travel planning will contribute to meaningful, enriching experiences.
-
-**✨ Next Steps:**
-For the most detailed and personalized assistance, please provide additional context about your destination, timeline, interests, or specific concerns. This enables more targeted, valuable guidance.
-
-I'm designed to help transform your travel dreams into well-planned, memorable realities."""
+    
     
     def get_connection_status(self) -> Dict[str, Any]:
         """Get detailed connection status"""

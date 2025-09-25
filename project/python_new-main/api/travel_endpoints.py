@@ -99,13 +99,23 @@ async def travel_chat(
         
         logger.info(f"Processing chat request for user {user_id}: {text[:50]}...")
         
+        # Ensure user exists in database (create anonymous user if needed)
+        try:
+            from auth.auth_service import auth_service
+            auth_service.ensure_user_exists(user_id, f"travel_user_{user_id}")
+        except Exception as e:
+            logger.warning(f"Could not ensure user exists: {e}")
+        
         # Get session context (last 7 days + UTP)
         session_context = travel_memory_manager.get_session_context(user_id, turn_limit=10)
         utp = travel_memory_manager.get_user_travel_profile(user_id)
         weekly_digest = travel_memory_manager.get_weekly_digest(user_id)
         
-        # Add user turn to session
+        # Add user turn to session (Redis)
         travel_memory_manager.add_turn(user_id, "user", text)
+        
+        # Store query in MySQL for persistence
+        travel_memory_manager.store_query(user_id, text, "", "chat_input")
         
         # Use fixed LangGraph multi-agent system for comprehensive travel assistance  
         from core.fixed_langgraph_multiagent_system import fixed_langgraph_multiagent_system
@@ -136,7 +146,7 @@ async def travel_chat(
                 "ai_used": True  # LangGraph uses Ollama
             }
         
-        # Add assistant turn to session
+        # Add assistant turn to session (Redis)
         travel_memory_manager.add_turn(
             user_id, 
             "assistant", 
@@ -146,6 +156,31 @@ async def travel_chat(
                 "processing_time": result["processing_time"]
             }
         )
+        
+        # Store interaction in MySQL for persistence
+        primary_agent = result["agents_involved"][0] if result["agents_involved"] else "TravelAssistant"
+        travel_memory_manager.store_interaction(user_id, primary_agent, text, result["response"])
+        
+        # Store complete session data in MySQL
+        if hasattr(travel_memory_manager, 'mysql_conn') and travel_memory_manager.mysql_conn:
+            try:
+                session_id = session_context.get("session_id") or f"chat_{int(time.time())}"
+                cursor = travel_memory_manager.mysql_conn.cursor()
+                cursor.execute(
+                    """
+                    INSERT INTO sessions (session_id, user_id, title, mode, started_at, last_at, turn_count) 
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE 
+                    last_at = VALUES(last_at), 
+                    turn_count = turn_count + 1
+                    """,
+                    (session_id, user_id, "Travel Chat Session", "chat", 
+                     datetime.now(), datetime.now(), 1)
+                )
+                travel_memory_manager.mysql_conn.commit()
+                cursor.close()
+            except Exception as e:
+                logger.warning(f"Failed to store session in MySQL: {e}")
         
         processing_time = time.time() - start_time
         
@@ -184,6 +219,13 @@ async def travel_batch(
         
         logger.info(f"Processing batch request for user {user_id}: {len(transcript)} characters")
         
+        # Ensure user exists in database (create anonymous user if needed)
+        try:
+            from auth.auth_service import auth_service
+            auth_service.ensure_user_exists(user_id, f"batch_user_{user_id}")
+        except Exception as e:
+            logger.warning(f"Could not ensure user exists: {e}")
+        
         # Start new recording session
         session_id = travel_memory_manager.start_new_session(
             user_id, 
@@ -191,8 +233,11 @@ async def travel_batch(
             title=f"Trip Recording - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
         )
         
-        # Add transcript as single user turn
+        # Add transcript as single user turn (Redis)
         travel_memory_manager.add_turn(user_id, "user", transcript, metadata={"type": "transcript"})
+        
+        # Store batch request in MySQL
+        travel_memory_manager.store_query(user_id, transcript[:500], "", "batch_input")
         
         # Get current UTP for context
         current_utp = travel_memory_manager.get_user_travel_profile(user_id)
@@ -232,7 +277,7 @@ async def travel_batch(
                 }
             }
         
-        # Add synthesized response as assistant turn
+        # Add synthesized response as assistant turn (Redis)
         travel_memory_manager.add_turn(
             user_id,
             "assistant", 
@@ -243,6 +288,31 @@ async def travel_batch(
                 "utp_updated": result.get("utp_updated", False)
             }
         )
+        
+        # Store batch interaction in MySQL for persistence
+        primary_agent = result["agents_involved"][0] if result["agents_involved"] else "TravelAssistant"
+        travel_memory_manager.store_interaction(user_id, primary_agent, transcript[:500], result["response"])
+        
+        # Store session in MySQL
+        if hasattr(travel_memory_manager, 'mysql_conn') and travel_memory_manager.mysql_conn:
+            try:
+                cursor = travel_memory_manager.mysql_conn.cursor()
+                cursor.execute(
+                    """
+                    INSERT INTO sessions (session_id, user_id, title, mode, started_at, last_at, turn_count, session_summary) 
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE 
+                    last_at = VALUES(last_at), 
+                    turn_count = turn_count + 1,
+                    session_summary = VALUES(session_summary)
+                    """,
+                    (session_id, user_id, f"Trip Recording - {datetime.now().strftime('%Y-%m-%d %H:%M')}", "recording", 
+                     datetime.now(), datetime.now(), 1, result["response"][:1000])
+                )
+                travel_memory_manager.mysql_conn.commit()
+                cursor.close()
+            except Exception as e:
+                logger.warning(f"Failed to store batch session in MySQL: {e}")
         
         # End the recording session
         travel_memory_manager.end_session(user_id, session_id)
@@ -638,6 +708,203 @@ async def cancel_transcription(
     except Exception as e:
         logger.error(f"Error cancelling transcription: {e}")
         raise HTTPException(status_code=500, detail=f"Cancellation failed: {str(e)}")
+
+@router.post("/recording/upload")
+async def recording_audio_upload(
+    user_id: int = Form(...),
+    audio: UploadFile = File(...),
+    current_user: Dict = Depends(get_optional_current_user)
+):
+    """
+    Recording Mode Audio Upload: Upload audio file, transcribe, and analyze through LangGraph
+    This is a simplified endpoint specifically for Recording Mode integration
+    """
+    start_time = time.time()
+    
+    try:
+        from core.enhanced_audio_transcriber import enhanced_transcriber
+        
+        logger.info(f"Recording mode audio upload for user {user_id}: {audio.filename}")
+        
+        # Save uploaded file to temporary location
+        import uuid
+        unique_filename = f"{uuid.uuid4()}_{audio.filename}"
+        temp_file_path = enhanced_transcriber.temp_dir / unique_filename
+        
+        with open(temp_file_path, "wb") as temp_file:
+            content = await audio.read()
+            temp_file.write(content)
+        
+        # Perform synchronous transcription (simplified for Recording Mode)
+        transcription_result = None
+        try:
+            logger.info(f"Starting transcription for: {temp_file_path}")
+            logger.info(f"File exists: {temp_file_path.exists()}")
+            logger.info(f"File size: {temp_file_path.stat().st_size if temp_file_path.exists() else 'N/A'} bytes")
+            
+            transcription_result = enhanced_transcriber.transcribe_sync(
+                file_path=temp_file_path,
+                language="auto",
+                engine="auto",
+                timeout=120  # 2 minute timeout for Recording Mode
+            )
+            
+            transcript = transcription_result["full_text"]
+            logger.info(f"Audio transcribed successfully: {len(transcript)} characters")
+            
+        except Exception as e:
+            logger.error(f"Transcription failed: {e}")
+            # Clean up temporary file on error
+            try:
+                if temp_file_path.exists():
+                    os.remove(temp_file_path)
+                    logger.info(f"Cleaned up temp file after error: {temp_file_path}")
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to cleanup temp file: {cleanup_error}")
+            raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
+        
+        # Now process the transcription exactly like regular Recording Mode batch processing
+        # This ensures consistency with existing Recording Mode functionality
+        
+        # Ensure user exists in database (create anonymous user if needed)
+        try:
+            from auth.auth_service import auth_service
+            auth_service.ensure_user_exists(user_id, f"audio_user_{user_id}")
+        except Exception as e:
+            logger.warning(f"Could not ensure user exists: {e}")
+        
+        # Start new recording session
+        session_id = travel_memory_manager.start_new_session(
+            user_id, 
+            mode="recording",
+            title=f"Audio Recording - {audio.filename} - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        )
+        
+        # Add transcript as single user turn (Redis) - same as batch processing
+        travel_memory_manager.add_turn(
+            user_id, 
+            "user", 
+            transcript, 
+            metadata={
+                "type": "audio_transcript", 
+                "filename": audio.filename,
+                "engine": transcription_result["engine"],
+                "language": transcription_result["language"],
+                "duration": transcription_result["duration"],
+                "word_count": transcription_result["word_count"]
+            }
+        )
+        
+        # Store audio request in MySQL
+        travel_memory_manager.store_query(user_id, transcript[:500], "", "audio_input")
+        
+        # Get current UTP for context
+        current_utp = travel_memory_manager.get_user_travel_profile(user_id)
+        
+        # Use fixed LangGraph multi-agent system for comprehensive analysis (same as batch)
+        from core.fixed_langgraph_multiagent_system import fixed_langgraph_multiagent_system
+        
+        # Process through enhanced LangGraph multi-agent system for audio analysis
+        result = fixed_langgraph_multiagent_system.process_request(
+            user=f"user_{user_id}",
+            user_id=user_id,
+            question=f"Analyze this travel planning conversation from audio: {transcript[:500]}{'...' if len(transcript) > 500 else ''}"
+        )
+        
+        # Check if result is None and adapt LangGraph response format
+        if result is None or not isinstance(result, dict):
+            result = {
+                "response": f"I analyzed your audio recording ({len(transcript)} characters from {audio.filename}). Here are the key insights.",
+                "agents_involved": ["ErrorHandler"],
+                "processing_time": time.time() - start_time,
+                "mode": "recording",
+                "ai_used": False
+            }
+        else:
+            # Adapt LangGraph result to expected format for audio analysis
+            result = {
+                "response": result.get("response", result.get("final_response", "Audio analysis completed")),
+                "agents_involved": result.get("agents_involved", result.get("agent_chain", ["TravelAssistant"])),
+                "processing_time": result.get("processing_time", time.time() - start_time),
+                "mode": "recording",
+                "ai_used": True,  # LangGraph uses Ollama
+                "transcription_data": {
+                    "filename": audio.filename,
+                    "transcript_length": len(transcript),
+                    "engine": transcription_result["engine"],
+                    "language": transcription_result["language"],
+                    "duration": transcription_result["duration"],
+                    "confidence": transcription_result["confidence"]
+                }
+            }
+        
+        # Add synthesized response as assistant turn (Redis)
+        travel_memory_manager.add_turn(
+            user_id,
+            "assistant", 
+            result["response"],
+            metadata={
+                "type": "audio_analysis",
+                "agents_involved": result["agents_involved"],
+                "utp_updated": result.get("utp_updated", False),
+                "transcription_engine": transcription_result["engine"]
+            }
+        )
+        
+        # Store audio interaction in MySQL for persistence
+        primary_agent = result["agents_involved"][0] if result["agents_involved"] else "TravelAssistant"
+        travel_memory_manager.store_interaction(user_id, primary_agent, transcript[:500], result["response"])
+        
+        # Store session in MySQL
+        if hasattr(travel_memory_manager, 'mysql_conn') and travel_memory_manager.mysql_conn:
+            try:
+                cursor = travel_memory_manager.mysql_conn.cursor()
+                cursor.execute(
+                    """
+                    INSERT INTO sessions (session_id, user_id, title, mode, started_at, last_at, turn_count, session_summary) 
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE 
+                    last_at = VALUES(last_at), 
+                    turn_count = turn_count + 1,
+                    session_summary = VALUES(session_summary)
+                    """,
+                    (session_id, user_id, f"Audio Recording - {audio.filename} - {datetime.now().strftime('%Y-%m-%d %H:%M')}", "recording", 
+                     datetime.now(), datetime.now(), 1, result["response"][:1000])
+                )
+                travel_memory_manager.mysql_conn.commit()
+                cursor.close()
+            except Exception as e:
+                logger.warning(f"Failed to store audio session in MySQL: {e}")
+        
+        # End the recording session
+        travel_memory_manager.end_session(user_id, session_id)
+        
+        # Clean up temporary file after successful processing
+        try:
+            if temp_file_path.exists():
+                os.remove(temp_file_path)
+                logger.info(f"Cleaned up temp file after successful processing: {temp_file_path}")
+        except Exception as cleanup_error:
+            logger.warning(f"Failed to cleanup temp file after success: {cleanup_error}")
+        
+        processing_time = time.time() - start_time
+        
+        # Return the same format as batch processing for UI consistency
+        return TravelResponse(
+            user_id=user_id,
+            response=result["response"],
+            agents_involved=result["agents_involved"],
+            processing_time=processing_time,
+            session_id=session_id,
+            mode="recording",
+            ai_used=bool(result.get("ai_used", False))
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Recording audio upload error: {e}")
+        raise HTTPException(status_code=500, detail=f"Recording audio upload failed: {str(e)}")
 
 # Export router
 __all__ = ['router']
